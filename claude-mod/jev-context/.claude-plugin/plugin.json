@@ -1,0 +1,15 @@
+{
+  "name": "jev-context",
+  "version": "0.2.0",
+  "description": "Advises when a big Claude Code context is worth compacting or clearing, and keeps a searchable log of past sessions. Advice only: it never runs /compact or /clear.",
+  "author": { "name": "Henric" },
+  "license": "MIT",
+  "userConfig": {
+    "python": {
+      "type": "string",
+      "title": "Python for the server",
+      "description": "Command or path of the Python that has jev-toolkit-compiler and jev-toolkit-usage installed. Empty: JEV_PYTHON, else `python` (Windows) or `python3` on PATH.",
+      "default": ""
+    }
+  }
+}

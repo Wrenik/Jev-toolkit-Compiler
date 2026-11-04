@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "jev-context": {
+      "command": "python",
+      "args": ["-m", "jev_context.mcp_server"]
+    }
+  }
+}
