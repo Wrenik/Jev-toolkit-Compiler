@@ -19,7 +19,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .search import DEFAULT_BUDGET_TOKENS, count_hits, fts_query, get_turn, search
+from .search import DEFAULT_BUDGET_TOKENS, MAX_OFFSET, count_hits, fts_query, get_turn, no_match_hint, search
 from .store import default_db
 
 PROTOCOL = "2025-06-18"
@@ -40,6 +40,10 @@ def quote(text: str) -> str:
     return text.replace("<", "\u2039").replace(">", "\u203a")  # single angle quotation marks
 
 
+# Hints for clients (not security): both tools only read a local file and touch nothing outside it.
+READ_ONLY = {"title": "Search past sessions", "readOnlyHint": True, "destructiveHint": False,
+             "idempotentHint": True, "openWorldHint": False}
+
 TOOLS = [
     {
         "name": "search_log",
@@ -54,6 +58,9 @@ TOOLS = [
                 "query": {"type": "string", "description": "A few distinctive words; all must appear."},
                 "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT, "default": 5},
                 "days": {"type": "number", "description": "Only the last N days."},
+                "project": {"type": "string", "description": "Only this project name (see the CLI `stats`)."},
+                "offset": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0,
+                           "description": "Skip this many matches: the next page, using the 'next offset' the last answer gave."},
                 "role": {"type": "string", "enum": ["user", "assistant"]},
                 "kind": {"type": "string", "enum": ["text", "tool_use", "tool_result"]},
                 "tool": {"type": "string", "description": "Tool name, e.g. Bash."},
@@ -61,6 +68,7 @@ TOOLS = [
             "required": ["query"],
             "additionalProperties": False,
         },
+        "annotations": READ_ONLY,
     },
     {
         "name": "get_turn",
@@ -74,6 +82,7 @@ TOOLS = [
             "required": ["id"],
             "additionalProperties": False,
         },
+        "annotations": {**READ_ONLY, "title": "Read one logged turn"},
     },
 ]
 
@@ -122,11 +131,18 @@ def call_tool(db: sqlite3.Connection | None, name: str, args: dict) -> str:
         since = time.time() - min(float(days), 36_500) * 86400 if isinstance(days, (int, float)) and not isinstance(days, bool) and days > 0 else None
         limit = _clamp(args.get("limit"), 1, MAX_LIMIT, 5)
         flt = {k: args[k] for k in ('role', 'kind', 'tool') if isinstance(args.get(k), str)}
-        hits = search(db, query, limit, min(DEFAULT_BUDGET_TOKENS, MAX_BUDGET), since, **flt)
+        project = args["project"] if isinstance(args.get("project"), str) and args["project"] else None
+        offset = _clamp(args.get("offset"), 0, MAX_OFFSET, 0)
+        hits = search(db, query, limit, min(DEFAULT_BUDGET_TOKENS, MAX_BUDGET), since, project, offset=offset, **flt)
+        total = count_hits(db, query, since, project, **flt)
         if not hits:
-            return "No matches. All words must appear; try fewer or different words, or a prefix such as word*."
-        total = count_hits(db, query, since, **flt)
-        lines = [f"showing {len(hits)} of {total} matches" + (" - refine the query to narrow it" if total > len(hits) else "")]
+            if offset and total:
+                return f"No more matches: the query has {total} in all, and offset {offset} is past the end."
+            return no_match_hint(db, query, since, project, flt)
+        end = offset + len(hits)
+        more = f" - next page: offset {end}" if total > end else ""
+        span = f"{offset + 1}-{end}" if offset else str(end)
+        lines = [f"showing {span} of {total} matches{more}"]
         for h in hits:
             when = datetime.fromtimestamp(h.ts).strftime("%Y-%m-%d %H:%M") if h.ts else "?"
             lines.append(quote(f"{h.id} | {when} | {h.role}/{h.kind}\n  \"{h.snippet}\""))

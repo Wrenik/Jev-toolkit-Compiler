@@ -18,6 +18,22 @@ def status(db: sqlite3.Connection, path: str | Path | None = None) -> str:
     return "\n".join(lines)
 
 
+def stats(db: sqlite3.Connection, path: str | Path | None = None, top: int = 15) -> str:
+    """Where the log's size comes from: per project, per role/kind, top tools. Counts only, no transcript text."""
+    day = lambda x: datetime.fromtimestamp(x).strftime("%Y-%m-%d") if x else "-"  # noqa: E731
+    lines = [status(db, path), "", "projects (sessions, turns, last turn):"]
+    rows = db.execute("SELECT COALESCE(s.project,'?') p, count(DISTINCT s.id) n, count(t.rowid) c, max(t.ts) m FROM session s "
+                      "LEFT JOIN turn t ON t.session_id = s.id GROUP BY p ORDER BY c DESC LIMIT ?", (top,)).fetchall()
+    lines += [f"  {r['p']}: {r['n']} sessions, {r['c']} turns, {day(r['m'])}" for r in rows] or ["  (none)"]
+    kinds = db.execute("SELECT role, kind, count(*) c FROM turn GROUP BY role, kind ORDER BY c DESC").fetchall()
+    lines.append("by role/kind: " + (", ".join(f"{r['role']}/{r['kind']} {r['c']}" for r in kinds) or "-"))
+    tools = db.execute("SELECT tool, count(*) c FROM turn WHERE tool IS NOT NULL GROUP BY tool ORDER BY c DESC LIMIT 8").fetchall()
+    lines.append("top tools: " + (", ".join(f"{r['tool']} {r['c']}" for r in tools) or "-"))
+    big = db.execute("SELECT count(*), COALESCE(sum(size),0) FROM blob").fetchone()
+    lines.append(f"full-body blobs: {big[0]} ({big[1] / 1e6:.1f} MB before compression)")
+    return "\n".join(lines)
+
+
 def forget(db: sqlite3.Connection, session: str | None = None, project: str | None = None, everything: bool = False) -> int:
     """Delete turns of one session, one project, or everything. Returns the number of turns removed.
 

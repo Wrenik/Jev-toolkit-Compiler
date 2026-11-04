@@ -18,6 +18,11 @@ from .store import get_blob
 CHARS_PER_TOKEN = 4
 DEFAULT_BUDGET_TOKENS = 1_500
 SNIPPET_CHARS = 240
+# Hit markers: rare guillemets, so a "[word]" or "<b>" already in a transcript is never mistaken for a hit.
+HIT_OPEN, HIT_CLOSE = "«", "»"
+# bm25 column weights (text, tool): a body match counts fully, a match only in the tool name a little.
+BM25_WEIGHTS = (1.0, 0.5)
+MAX_OFFSET = 10_000
 
 
 @dataclass(frozen=True)
@@ -83,6 +88,7 @@ def search(
     role: str | None = None,
     kind: str | None = None,
     tool: str | None = None,
+    offset: int = 0,
 ) -> list[Hit]:
     """Best matches first. Stops early when the snippets would exceed `budget_tokens`.
 
@@ -92,8 +98,8 @@ def search(
     if not q:
         return []
     sql = (
-        "SELECT t.id, t.session_id, t.ts, t.role, t.kind, t.tool, bm25(turn_fts) AS score, "
-        "snippet(turn_fts, 0, '[', ']', ' ... ', 32) AS snip "
+        f"SELECT t.id, t.session_id, t.ts, t.role, t.kind, t.tool, bm25(turn_fts, {BM25_WEIGHTS[0]}, {BM25_WEIGHTS[1]}) AS score, "
+        f"snippet(turn_fts, 0, '{HIT_OPEN}', '{HIT_CLOSE}', ' ... ', 32) AS snip "
         "FROM turn_fts JOIN turn t ON t.rowid = turn_fts.rowid "
         "JOIN session s ON s.id = t.session_id WHERE turn_fts MATCH ?"
     )
@@ -101,8 +107,9 @@ def search(
     sql += extra
     args: list = [q, *more]
     # Fetch more than `limit` when decay may reorder results.
-    sql += " ORDER BY score LIMIT ?"
-    args.append(limit * 5 if half_life_days else limit)
+    offset = max(0, min(int(offset), MAX_OFFSET))
+    sql += " ORDER BY score LIMIT ? OFFSET ?"
+    args += [(limit + offset) * 5 if half_life_days else limit, 0 if half_life_days else offset]
     rows = db.execute(sql, args).fetchall()
 
     now = time.time() if now is None else now
@@ -118,13 +125,26 @@ def search(
 
     out: list[Hit] = []
     used = 0
-    for h in hits[:limit]:
+    for h in hits[offset:offset + limit] if half_life_days else hits[:limit]:
         cost = (len(h.snippet) + 80) // CHARS_PER_TOKEN  # snippet plus the id/metadata line
         if out and used + cost > budget_tokens:
             break
         out.append(h)
         used += cost
     return out
+
+
+def no_match_hint(db: sqlite3.Connection, query: str, since: float | None = None, project: str | None = None,
+                  filters: dict | None = None) -> str:
+    """Say WHY nothing matched: empty log, filters too narrow, or the words themselves."""
+    if db.execute("SELECT 1 FROM turn LIMIT 1").fetchone() is None:
+        return "The log is empty. Run `python -m jev_context ingest` first."
+    filters = filters or {}
+    if (since is not None or project or filters) and count_hits(db, query) > 0:
+        used = ", ".join(x for x in ([f"project={project}"] if project else []) + ([f"{k}={v}" for k, v in filters.items()])
+                         + (["a date limit"] if since is not None else []))
+        return f"No matches with these filters ({used}), but the words do occur elsewhere: loosen a filter."
+    return "No matches. All words must appear; try fewer or different words, or a prefix such as word*."
 
 
 def get_turn(db: sqlite3.Connection, turn_id: str, around: int = 0, max_chars: int = 6_000) -> list[dict]:

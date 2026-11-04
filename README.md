@@ -48,6 +48,8 @@ python -m jev_context ingest --dry-run            # count what a first ingest wo
 python -m jev_context setup                       # ingest ~/.claude/projects, check everything, print the MCP command
 python -m jev_context search "some words you remember"
 python -m jev_context status                      # what the log holds and where it lives
+python -m jev_context stats                          # per-project sizes, dates, top tools
+python -m jev_context search "cache design" --project NAME --since 2026-10-01 --role user --offset 10
 python -m jev_context forget --session ID --yes   # delete one session's rows (or --project / --all)
 ```
 

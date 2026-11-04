@@ -148,4 +148,4 @@ def test_prefix_and_empty_results_have_words(dbfile):
 
 def test_reports_shown_versus_total(dbfile):
     text = call(dbfile, "search_log", {"query": "walrus", "limit": 1})["content"][0]["text"]
-    assert "showing 1 of 3 matches - refine the query" in text
+    assert "showing 1 of 3 matches - next page: offset 1" in text

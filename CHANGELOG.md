@@ -6,6 +6,17 @@ change behaviour; they are listed here.
 
 ## [Unreleased]
 
+### Added
+- `docs/PRIOR_ART.md`: comparison with existing session-memory tools, compaction hooks, FTS5 and MCP practice.
+- `jev_context stats` (per project, role/kind, top tools); `search --since YYYY-MM-DD` and `--offset`.
+- MCP `search_log`: `project` and `offset` parameters, "next page" hint, read-only tool annotations.
+- Empty-result messages now say why (empty log, filters too narrow, words not found).
+
+### Changed
+- BM25 column weights (body 1.0, tool name 0.5); hit markers are guillemets instead of square brackets.
+- `__main__.main` split into per-command functions.
+- Regression tests: npm token, `curl -u` and fullwidth e-mail are redacted before storage.
+
 ## [0.1.0] - first public release (draft)
 
 The numbers used inside the private monorepo this repository was cut from restart at 0.1.0 here.
