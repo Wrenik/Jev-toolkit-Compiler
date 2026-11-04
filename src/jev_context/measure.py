@@ -8,6 +8,7 @@ Read-only. Transcripts are JSONL files, one record per line. What is used:
   * user records carrying tool_result blocks: size of tool output, duplicates by content hash
 Context size of one API call = input_tokens + cache_read + cache_creation (what the model saw).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -72,9 +73,15 @@ def analyse_session(path: Path) -> dict:
             ts = _ts(rec)
             if msg.get("id") and ts is not None and "input_tokens" in u:
                 ctx = u["input_tokens"] + u.get("cache_read_input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
-                calls[msg["id"]] = dict(ts=ts, ctx=ctx, read=u.get("cache_read_input_tokens", 0),
-                                        create=u.get("cache_creation_input_tokens", 0), out=u.get("output_tokens", 0),
-                                        model=msg.get("model"), side=bool(rec.get("isSidechain")))
+                calls[msg["id"]] = dict(
+                    ts=ts,
+                    ctx=ctx,
+                    read=u.get("cache_read_input_tokens", 0),
+                    create=u.get("cache_creation_input_tokens", 0),
+                    out=u.get("output_tokens", 0),
+                    model=msg.get("model"),
+                    side=bool(rec.get("isSidechain")),
+                )
             assistant_chars += _block_len(msg.get("content"))
         elif typ == "user":
             content = rec.get("message", {}).get("content")
@@ -93,7 +100,9 @@ def analyse_session(path: Path) -> dict:
                 user_chars += _block_len(content)
         elif typ == "system" and rec.get("subtype") == "compact_boundary":
             m = rec.get("compactMetadata", {})
-            compactions.append(dict(ts=_ts(rec), pre=m.get("preTokens"), post=m.get("postTokens"), trigger=m.get("trigger")))
+            compactions.append(
+                dict(ts=_ts(rec), pre=m.get("preTokens"), post=m.get("postTokens"), trigger=m.get("trigger"))
+            )
     ordered = sorted(calls.values(), key=lambda c: c["ts"])
     main = [c for c in ordered if not c["side"]]
     gaps = []
@@ -106,13 +115,23 @@ def analyse_session(path: Path) -> dict:
         algos["zstd3"] = lambda b: zstd.compress(b, level=3)
         algos["zstd19"] = lambda b: zstd.compress(b, level=19)
     return dict(
-        msg_ids=sorted(calls), file=path.name, project=path.parent.name[-40:], bytes=len(raw), kind_bytes=dict(kind_bytes),
-        n_calls=len(ordered), n_main_calls=len(main), max_ctx=max((c["ctx"] for c in ordered), default=0),
+        msg_ids=sorted(calls),
+        file=path.name,
+        project=path.parent.name[-40:],
+        bytes=len(raw),
+        kind_bytes=dict(kind_bytes),
+        n_calls=len(ordered),
+        n_main_calls=len(main),
+        max_ctx=max((c["ctx"] for c in ordered), default=0),
         span_h=((ordered[-1]["ts"] - ordered[0]["ts"]) / 3600) if ordered else 0,
-        gaps=[g["gap"] for g in gaps], gap_over={str(t): sum(1 for g in gaps if g["gap"] > t) for t in GAPS},
+        gaps=[g["gap"] for g in gaps],
+        gap_over={str(t): sum(1 for g in gaps if g["gap"] > t) for t in GAPS},
         cold_rereads=[dict(gap=g["gap"], ctx=g["ctx_after"]) for g in cold],
-        compactions=compactions, tool_chars=tool_chars, tool_dup_chars=tool_dup_chars,
-        user_chars=user_chars, assistant_chars=assistant_chars,
+        compactions=compactions,
+        tool_chars=tool_chars,
+        tool_dup_chars=tool_dup_chars,
+        user_chars=user_chars,
+        assistant_chars=assistant_chars,
         compressed_bytes={k: len(f(raw)) for k, f in algos.items()},
         ctx_series=[c["ctx"] for c in main],
     )
@@ -127,51 +146,65 @@ def report(sessions: list[dict]) -> str:
     out: list[str] = []
     w = out.append
     tot = sum(s["bytes"] for s in sessions)
-    w(f"Sessions: {len(sessions)}  total log size: {tot/1e6:.1f} MB  main-chain API calls: {sum(s['n_main_calls'] for s in sessions)}")
+    w(
+        f"Sessions: {len(sessions)}  total log size: {tot / 1e6:.1f} MB  main-chain API calls: {sum(s['n_main_calls'] for s in sessions)}"
+    )
     kinds: Counter = Counter()
     for s in sessions:
         kinds.update(s["kind_bytes"])
     w("\nLog bytes by record type:")
     for k, v in kinds.most_common(8):
-        w(f"  {str(k):28} {v/1e6:8.2f} MB  {100*v/tot:5.1f}%")
+        w(f"  {str(k):28} {v / 1e6:8.2f} MB  {100 * v / tot:5.1f}%")
     zk = "zstd3" if zstd else "zlib6"
     w("\nPer session:")
-    w(f"  {'file':14}{'MB':>7}{'calls':>7}{'maxctx':>9}{'hours':>7}{'>5m':>5}{'>1h':>5}{'cold':>5}{'compact':>8}{zk:>7}{'lzma':>7}")
+    w(
+        f"  {'file':14}{'MB':>7}{'calls':>7}{'maxctx':>9}{'hours':>7}{'>5m':>5}{'>1h':>5}{'cold':>5}{'compact':>8}{zk:>7}{'lzma':>7}"
+    )
     for s in sorted(sessions, key=lambda s: -s["bytes"]):
         c = s["compressed_bytes"]
-        w(f"  {s['file'][:12]:14}{s['bytes']/1e6:7.2f}{s['n_main_calls']:7}{s['max_ctx']:9}{s['span_h']:7.1f}"
-          f"{s['gap_over']['300']:5}{s['gap_over']['3600']:5}{len(s['cold_rereads']):5}{len(s['compactions']):8}"
-          f"{s['bytes']/max(1, c[zk]):6.1f}x{s['bytes']/max(1, c['lzma']):6.1f}x")
+        w(
+            f"  {s['file'][:12]:14}{s['bytes'] / 1e6:7.2f}{s['n_main_calls']:7}{s['max_ctx']:9}{s['span_h']:7.1f}"
+            f"{s['gap_over']['300']:5}{s['gap_over']['3600']:5}{len(s['cold_rereads']):5}{len(s['compactions']):8}"
+            f"{s['bytes'] / max(1, c[zk]):6.1f}x{s['bytes'] / max(1, c['lzma']):6.1f}x"
+        )
     gaps = [g for s in sessions for g in s["gaps"]]
     if gaps:
-        w(f"\nGaps between consecutive main-chain API calls (n={len(gaps)}): median {statistics.median(gaps):.0f}s, "
-          f"p90 {pct(gaps, .9):.0f}s, p99 {pct(gaps, .99):.0f}s, max {max(gaps)/3600:.1f}h")
+        w(
+            f"\nGaps between consecutive main-chain API calls (n={len(gaps)}): median {statistics.median(gaps):.0f}s, "
+            f"p90 {pct(gaps, 0.9):.0f}s, p99 {pct(gaps, 0.99):.0f}s, max {max(gaps) / 3600:.1f}h"
+        )
         for t in GAPS:
             n = sum(1 for g in gaps if g > t)
-            w(f"  gaps > {t//60} min: {n} ({100*n/len(gaps):.1f}%)")
+            w(f"  gaps > {t // 60} min: {n} ({100 * n / len(gaps):.1f}%)")
         long_ = [g for g in gaps if g > 3600]
         if long_:
-            w(f"  gaps > 1 h: median {statistics.median(long_)/3600:.1f} h, max {max(long_)/3600:.1f} h")
+            w(f"  gaps > 1 h: median {statistics.median(long_) / 3600:.1f} h, max {max(long_) / 3600:.1f} h")
     cold = [c for s in sessions for c in s["cold_rereads"]]
     w(f"\nObserved cold re-reads (call re-created >80% of a >20k context): {len(cold)}")
     if cold:
-        w(f"  tokens re-read in total: {sum(c['ctx'] for c in cold):,}; median {statistics.median(c['ctx'] for c in cold):,.0f}; "
-          f"median gap before them {statistics.median(c['gap'] for c in cold)/60:.0f} min")
+        w(
+            f"  tokens re-read in total: {sum(c['ctx'] for c in cold):,}; median {statistics.median(c['ctx'] for c in cold):,.0f}; "
+            f"median gap before them {statistics.median(c['gap'] for c in cold) / 60:.0f} min"
+        )
     ctxs = [x for s in sessions for x in s["ctx_series"]]
     if ctxs:
-        w(f"\nContext size per call: median {statistics.median(ctxs):,.0f}, p90 {pct(ctxs, .9):,}, max {max(ctxs):,}")
+        w(f"\nContext size per call: median {statistics.median(ctxs):,.0f}, p90 {pct(ctxs, 0.9):,}, max {max(ctxs):,}")
     comps = [c for s in sessions for c in s["compactions"]]
     w(f"\nCompaction events: {len(comps)}")
     for c in comps:
         if c["pre"]:
-            w(f"  {c['trigger']}: {c['pre']:,} -> {c['post']:,} tokens ({100*(1-c['post']/c['pre']):.0f}% removed)")
+            w(
+                f"  {c['trigger']}: {c['pre']:,} -> {c['post']:,} tokens ({100 * (1 - c['post'] / c['pre']):.0f}% removed)"
+            )
     tc, td = sum(s["tool_chars"] for s in sessions), sum(s["tool_dup_chars"] for s in sessions)
     uc, ac = sum(s["user_chars"] for s in sessions), sum(s["assistant_chars"] for s in sessions)
-    w(f"\nContent mix (chars): tool results {tc/1e6:.2f} M, assistant {ac/1e6:.2f} M, user text {uc/1e6:.2f} M")
-    w(f"Exact-duplicate tool results (>200 chars, 2nd+ occurrence): {td/1e6:.2f} M chars = {100*td/max(1, tc):.1f}% of tool output")
+    w(f"\nContent mix (chars): tool results {tc / 1e6:.2f} M, assistant {ac / 1e6:.2f} M, user text {uc / 1e6:.2f} M")
+    w(
+        f"Exact-duplicate tool results (>200 chars, 2nd+ occurrence): {td / 1e6:.2f} M chars = {100 * td / max(1, tc):.1f}% of tool output"
+    )
     w("\nWhole-file compression ratios (raw / compressed):")
     for k in sessions[0]["compressed_bytes"]:
-        w(f"  {k:8} {tot/sum(s['compressed_bytes'][k] for s in sessions):5.1f}x")
+        w(f"  {k:8} {tot / sum(s['compressed_bytes'][k] for s in sessions):5.1f}x")
     return "\n".join(out)
 
 

@@ -106,7 +106,13 @@ def ingest_lines(db: sqlite3.Connection, lines: Iterable[str], project: str = ""
             continue
         role = rec.get("type")
         sid, uuid = rec.get("sessionId"), rec.get("uuid")
-        if role not in ("user", "assistant") or not isinstance(sid, str) or not isinstance(uuid, str) or not sid or not uuid:
+        if (
+            role not in ("user", "assistant")
+            or not isinstance(sid, str)
+            or not isinstance(uuid, str)
+            or not sid
+            or not uuid
+        ):
             stats["skipped"] += 1
             continue
         stats["records"] += 1
@@ -120,8 +126,16 @@ def ingest_lines(db: sqlite3.Connection, lines: Iterable[str], project: str = ""
             clean, found = redact(raw)
             stats["redactions"] += len(found)
             turn = NewTurn(
-                id=f"{uuid}:{idx}", session_id=sid, seq=line_no * 1000 + idx, ts=_ts(rec), role=role, kind=kind,
-                text=clip(clean), tool=tool, redactions=len(found), full_text=clean if len(clean) > CLIP_CHARS else None,
+                id=f"{uuid}:{idx}",
+                session_id=sid,
+                seq=line_no * 1000 + idx,
+                ts=_ts(rec),
+                role=role,
+                kind=kind,
+                text=clip(clean),
+                tool=tool,
+                redactions=len(found),
+                full_text=clean if len(clean) > CLIP_CHARS else None,
             )
             stats["added" if add_turn(db, turn) else "duplicates"] += 1
     return stats
@@ -132,12 +146,22 @@ def ingest_file(db: sqlite3.Connection, path: Path, project: str | None = None) 
     st = path.stat()
     row = db.execute("SELECT size, mtime_ns FROM file_state WHERE path=?", (str(path),)).fetchone()
     if row and row["size"] == st.st_size and row["mtime_ns"] == st.st_mtime_ns:
-        return {"records": 0, "added": 0, "duplicates": 0, "skipped": 0, "malformed": 0, "redactions": 0, "unchanged": 1}
+        return {
+            "records": 0,
+            "added": 0,
+            "duplicates": 0,
+            "skipped": 0,
+            "malformed": 0,
+            "redactions": 0,
+            "unchanged": 1,
+        }
     with path.open(encoding="utf-8", errors="replace") as f:
         stats = ingest_lines(db, f, project=project if project is not None else path.parent.name)
-    db.execute("INSERT INTO file_state(path, size, mtime_ns) VALUES (?,?,?) "
-               "ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime_ns=excluded.mtime_ns",
-               (str(path), st.st_size, st.st_mtime_ns))
+    db.execute(
+        "INSERT INTO file_state(path, size, mtime_ns) VALUES (?,?,?) "
+        "ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime_ns=excluded.mtime_ns",
+        (str(path), st.st_size, st.st_mtime_ns),
+    )
     db.commit()
     return stats
 

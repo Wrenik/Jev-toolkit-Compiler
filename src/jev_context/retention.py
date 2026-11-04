@@ -39,18 +39,24 @@ def warm(db: sqlite3.Connection, warm_days: float = WARM_DAYS, now: float | None
                 raw = r["text"].encode("utf-8")
                 sha = hashlib.sha256(raw).hexdigest()
                 codec, data = pack(raw)
-                db.execute("INSERT OR IGNORE INTO blob(sha256, codec, size, data) VALUES (?,?,?,?)", (sha, codec, len(raw), data))
+                db.execute(
+                    "INSERT OR IGNORE INTO blob(sha256, codec, size, data) VALUES (?,?,?,?)",
+                    (sha, codec, len(raw), data),
+                )
             stub = r["text"][:STUB_CHARS]
-            db.execute("INSERT INTO turn_fts(turn_fts, rowid, text, tool) VALUES ('delete', ?, ?, ?)",
-                       (r["rowid"], r["text"], r["tool"]))
+            db.execute(
+                "INSERT INTO turn_fts(turn_fts, rowid, text, tool) VALUES ('delete', ?, ?, ?)",
+                (r["rowid"], r["text"], r["tool"]),
+            )
             db.execute("UPDATE turn SET text=?, blob_sha=? WHERE rowid=?", (stub, sha, r["rowid"]))
             db.execute("INSERT INTO turn_fts(rowid, text, tool) VALUES (?,?,?)", (r["rowid"], stub, r["tool"]))
             changed += 1
     return changed
 
 
-def purge_cold(db: sqlite3.Connection, cold_days: float = COLD_DAYS, enabled: bool = False,
-               now: float | None = None) -> int:
+def purge_cold(
+    db: sqlite3.Connection, cold_days: float = COLD_DAYS, enabled: bool = False, now: float | None = None
+) -> int:
     """Delete turns older than `cold_days`. Does nothing unless `enabled` is True."""
     if not enabled:
         return 0

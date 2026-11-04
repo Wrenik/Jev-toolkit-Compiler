@@ -97,11 +97,19 @@ def decide(s: Situation, policy: Policy = Policy(), w: Weights = Weights()) -> D
     def result(action: Action, reason: str) -> Decision:
         return Decision(action, reason, keep, compact, clear, None if n_star == float("inf") else n_star)
 
-    if s.closure in ("finished", "switch") and s.load_bearing is not None \
-            and s.load_bearing < policy.clear_below_load_bearing:
-        return result("clear_with_seed", f"task {s.closure} and only {s.load_bearing:.0%} of the context is still needed")
+    if (
+        s.closure in ("finished", "switch")
+        and s.load_bearing is not None
+        and s.load_bearing < policy.clear_below_load_bearing
+    ):
+        return result(
+            "clear_with_seed", f"task {s.closure} and only {s.load_bearing:.0%} of the context is still needed"
+        )
     if s.context_tokens >= policy.max_context_tokens:
         return result("compact_now", f"context at or above the {policy.max_context_tokens}-token ceiling")
     if keep - compact > 0 and (keep - compact) >= (policy.margin - 1) * compact:
-        return result("compact_now", f"saves {keep - compact:,.0f} weighted tokens over {s.expected_turns:.1f} turns (break-even {n_star:.1f})")
+        return result(
+            "compact_now",
+            f"saves {keep - compact:,.0f} weighted tokens over {s.expected_turns:.1f} turns (break-even {n_star:.1f})",
+        )
     return result("keep", f"compacting would not pay off within {s.expected_turns:.1f} turns (break-even {n_star:.1f})")

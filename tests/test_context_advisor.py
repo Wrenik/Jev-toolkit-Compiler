@@ -28,6 +28,7 @@ def judge_saying(p_continue=0.9, needed=3, closure="paused"):
     def responder(state, questions):
         mapping = {"continue": YesNoAnswer(p_continue), "needed": rate(needed), "closure": pick(closure)}
         return {k: mapping[k.split(".")[-1]] for k in questions if k.split(".")[-1] in mapping}
+
     return FakeJudge(responder)
 
 
@@ -83,7 +84,9 @@ def test_joint_request_is_one_call_and_each_tool_gets_its_own_answers():
 
     judge = FakeJudge(responder)
     router_part = ({"prompt": "fix the parser"}, ROUTER_QUESTIONS)
-    advice, verdicts = advise(judge, ["fix the parser"], 400_000, policy=SMALL_SUMMARY, share_with={"router": router_part})
+    advice, verdicts = advise(
+        judge, ["fix the parser"], 400_000, policy=SMALL_SUMMARY, share_with={"router": router_part}
+    )
     assert len(judge.calls) == 1  # one request to the judge for both tools
     state, questions = judge.calls[0]
     assert set(questions) == {f"router.{k}" for k in ROUTER_QUESTIONS} | {f"context.{k}" for k in QUESTIONS}
@@ -93,8 +96,12 @@ def test_joint_request_is_one_call_and_each_tool_gets_its_own_answers():
     signals = signals_of(verdicts["router"])
     assert set(signals) >= {"complexity", "deep", "risk_high"}
     assert advice.decision.action == "compact_now"
-    assert verdicts["router"].input_tokens > 0 and verdicts["context"].input_tokens == 0 or \
-        verdicts["context"].input_tokens > 0 and verdicts["router"].input_tokens == 0
+    assert (
+        verdicts["router"].input_tokens > 0
+        and verdicts["context"].input_tokens == 0
+        or verdicts["context"].input_tokens > 0
+        and verdicts["router"].input_tokens == 0
+    )
     assert verdicts["router"].extra["joint_with"] == ["context"]
 
 

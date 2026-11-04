@@ -47,11 +47,20 @@ def generate(root: Path, target_mb: int) -> int:
             if kind < 0.25:
                 rec = {"type": "user", "message": {"content": words(rng.randrange(10, 80))}}
             elif kind < 0.5:
-                rec = {"type": "assistant", "message": {"model": "m", "content": [{"type": "text", "text": words(rng.randrange(40, 300))}]}}
+                rec = {
+                    "type": "assistant",
+                    "message": {"model": "m", "content": [{"type": "text", "text": words(rng.randrange(40, 300))}]},
+                }
             elif kind < 0.65:
-                rec = {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": words(8)}}]}}
+                rec = {
+                    "type": "assistant",
+                    "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": words(8)}}]},
+                }
             else:
-                rec = {"type": "user", "message": {"content": [{"type": "tool_result", "content": words(rng.randrange(100, 3000))}]}}
+                rec = {
+                    "type": "user",
+                    "message": {"content": [{"type": "tool_result", "content": words(rng.randrange(100, 3000))}]},
+                }
             rec.update(uuid=f"u{n}", sessionId=sid, timestamp=ts)
             lines.append(json.dumps(rec))
         data = "\n".join(lines) + "\n"
@@ -84,9 +93,11 @@ def main() -> None:
     again = ingest_tree(db, root)
     print(f"second ingest (unchanged): {time.perf_counter() - t:.2f} s, unchanged files {again.get('unchanged')}")
     print(f"database {db_path.stat().st_size / 1e6:.0f} MB ({db_path.stat().st_size / size:.2f} x the transcripts)")
-    queries = [("rare", [rng.choice(VOCAB) for _ in range(40)]),
-               ("two rare words", [f"{rng.choice(VOCAB)} {rng.choice(VOCAB)}" for _ in range(40)]),
-               ("common word", ["function", "error test", "return value", "import class"] * 5)]
+    queries = [
+        ("rare", [rng.choice(VOCAB) for _ in range(40)]),
+        ("two rare words", [f"{rng.choice(VOCAB)} {rng.choice(VOCAB)}" for _ in range(40)]),
+        ("common word", ["function", "error test", "return value", "import class"] * 5),
+    ]
     for name, qs in queries:
         times = []
         for q in qs:
@@ -94,7 +105,9 @@ def main() -> None:
             search(db, q, limit=10)
             times.append((time.perf_counter() - t) * 1000)
         times.sort()
-        print(f"search {name}: median {statistics.median(times):.1f} ms, p95 {times[int(len(times) * 0.95) - 1]:.1f} ms, max {times[-1]:.1f} ms")
+        print(
+            f"search {name}: median {statistics.median(times):.1f} ms, p95 {times[int(len(times) * 0.95) - 1]:.1f} ms, max {times[-1]:.1f} ms"
+        )
     print(f"machine: {platform.platform()}, {os.cpu_count()} logical CPUs, Python {platform.python_version()}")
 
 

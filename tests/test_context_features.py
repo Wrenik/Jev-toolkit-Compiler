@@ -7,18 +7,36 @@ from jev_context.store import connect
 
 
 def rec(typ, uuid, content, sid="s1"):
-    return json.dumps({"type": typ, "uuid": uuid, "sessionId": sid, "timestamp": "2026-10-01T10:00:00Z", "message": {"content": content}})
+    return json.dumps(
+        {
+            "type": typ,
+            "uuid": uuid,
+            "sessionId": sid,
+            "timestamp": "2026-10-01T10:00:00Z",
+            "message": {"content": content},
+        }
+    )
 
 
 def make():
     db = connect(":memory:")
-    ingest_lines(db, [
-        rec("user", "u1", "connection refused on port 80"),
-        rec("assistant", "a1", [{"type": "text", "text": "refused connection means nothing listens"},
-                                {"type": "tool_use", "name": "Bash", "input": {"command": "curl localhost refused"}}]),
-        rec("user", "u2", [{"type": "tool_result", "content": "curl: connection refused"}]),
-        rec("user", "u3", "other session about refused", sid="s2"),
-    ], project="p")
+    ingest_lines(
+        db,
+        [
+            rec("user", "u1", "connection refused on port 80"),
+            rec(
+                "assistant",
+                "a1",
+                [
+                    {"type": "text", "text": "refused connection means nothing listens"},
+                    {"type": "tool_use", "name": "Bash", "input": {"command": "curl localhost refused"}},
+                ],
+            ),
+            rec("user", "u2", [{"type": "tool_result", "content": "curl: connection refused"}]),
+            rec("user", "u3", "other session about refused", sid="s2"),
+        ],
+        project="p",
+    )
     return db
 
 
@@ -74,7 +92,9 @@ def test_doctor_and_setup_text(tmp_path, capsys):
     assert cmd.startswith("claude mcp add jev-context -- ") and "jev_context.mcp_server --db" in cmd
     root = tmp_path / "t" / "p"
     root.mkdir(parents=True)
-    (root / "s.jsonl").write_text(rec("user", "u9", "a reasonably long sentence about zebra crossings") + "\n", encoding="utf-8")
+    (root / "s.jsonl").write_text(
+        rec("user", "u9", "a reasonably long sentence about zebra crossings") + "\n", encoding="utf-8"
+    )
     main(["--db", str(tmp_path / "log.sqlite"), "setup", "--root", str(tmp_path / "t")])
     out = capsys.readouterr().out
     assert "OK search works" in out and "claude mcp add" in out

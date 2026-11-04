@@ -23,8 +23,10 @@ def run_together(broker, tool_a, tool_b):
         except Exception as err:  # noqa: BLE001
             results[tool] = err
 
-    threads = [threading.Thread(target=go, args=(tool_a, ROUTER_QUESTIONS)),
-               threading.Thread(target=go, args=(tool_b, CONTEXT_QUESTIONS))]
+    threads = [
+        threading.Thread(target=go, args=(tool_a, ROUTER_QUESTIONS)),
+        threading.Thread(target=go, args=(tool_b, CONTEXT_QUESTIONS)),
+    ]
     for t in threads:
         t.start()
     for t in threads:
@@ -85,12 +87,14 @@ def test_solo_failure_is_the_normal_error():
 
 # --- through the real HTTP handler -------------------------------------------------------------
 
+
 @pytest.fixture
 def server(tmp_path):
     judge = FakeJudge()
     broker = Broker(judge, window_s=2.0)
-    handler = make_handler(broker, tmp_path / "router.jsonl", tmp_path / "advice.jsonl",
-                           tmp_path / "log.sqlite", tmp_path / "none")
+    handler = make_handler(
+        broker, tmp_path / "router.jsonl", tmp_path / "advice.jsonl", tmp_path / "log.sqlite", tmp_path / "none"
+    )
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     yield httpd, judge, broker
@@ -99,8 +103,9 @@ def server(tmp_path):
 
 def post(httpd, path, body, header=True):
     url = f"http://127.0.0.1:{httpd.server_address[1]}{path}"
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
-                                 headers={"X-Jev-Router": "1"} if header else {})
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(), method="POST", headers={"X-Jev-Router": "1"} if header else {}
+    )
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             return r.status, json.loads(r.read())
@@ -120,15 +125,23 @@ def test_http_route_and_advise_share_one_judge_call(server):
 
     threads = [
         threading.Thread(target=call, args=("route", "/route", {"prompt": "rename a variable"})),
-        threading.Thread(target=call, args=("advise", "/advise", {"recent_prompts": ["keep going"], "context_tokens": 300_000})),
+        threading.Thread(
+            target=call, args=("advise", "/advise", {"recent_prompts": ["keep going"], "context_tokens": 300_000})
+        ),
     ]
     for t in threads:
         t.start()
     for t in threads:
         t.join(15)
     assert len(judge.calls) == 1
-    assert out["route"][0] == 200 and out["route"][1]["ok"] and out["route"][1]["tier"] in ("light", "standard", "heavy")
-    assert out["advise"][0] == 200 and out["advise"][1]["ok"] and out["advise"][1]["action"] in ("keep", "compact_now", "clear_with_seed")
+    assert (
+        out["route"][0] == 200 and out["route"][1]["ok"] and out["route"][1]["tier"] in ("light", "standard", "heavy")
+    )
+    assert (
+        out["advise"][0] == 200
+        and out["advise"][1]["ok"]
+        and out["advise"][1]["action"] in ("keep", "compact_now", "clear_with_seed")
+    )
 
 
 def test_http_each_endpoint_alone(server):

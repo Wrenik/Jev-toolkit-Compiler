@@ -14,13 +14,16 @@ WEBHOOK = "whsec_" + "a1B2c3D4e5F6g7H8i9J0"
 GOOGLE = "AI" + "za" + "SyA-" + "x" * 33
 
 
-@pytest.mark.parametrize("text,kind", [
-    (STRIPE, "stripe_key"),
-    (WEBHOOK, "stripe_key"),
-    (GOOGLE, "google_key"),
-    ("Cookie: sessionid=abc123; csrftoken=zzz999", "cookie"),
-    ("Set-Cookie: sid=abc123; Path=/; HttpOnly", "cookie"),
-])
+@pytest.mark.parametrize(
+    "text,kind",
+    [
+        (STRIPE, "stripe_key"),
+        (WEBHOOK, "stripe_key"),
+        (GOOGLE, "google_key"),
+        ("Cookie: sessionid=abc123; csrftoken=zzz999", "cookie"),
+        ("Set-Cookie: sid=abc123; Path=/; HttpOnly", "cookie"),
+    ],
+)
 def test_new_secret_formats_are_redacted(text, kind):
     out, found = redact(text)
     assert kind in found and "abc123" not in out and "a1B2c3" not in out and "SyA-" not in out
@@ -39,8 +42,18 @@ def test_phone_numbers_are_not_detected():
 
 
 def line(uuid, content):
-    return json.dumps({"type": "user", "uuid": uuid, "sessionId": "s", "timestamp": "2026-10-01T10:00:00Z",
-                       "message": {"content": content}}) + "\n"
+    return (
+        json.dumps(
+            {
+                "type": "user",
+                "uuid": uuid,
+                "sessionId": "s",
+                "timestamp": "2026-10-01T10:00:00Z",
+                "message": {"content": content},
+            }
+        )
+        + "\n"
+    )
 
 
 def test_rewritten_file_with_same_size_is_reingested(tmp_path):
@@ -83,9 +96,24 @@ def test_gated_redaction_equals_ungated():
     import random
 
     rng = random.Random(1)
-    bits = [STRIPE, GOOGLE, "Cookie: a=b", "api_key=abcdefgh1234", "password: hunter2xx", "https://u:pw@host/x", "eyJabcdefghi.abcdefghij.abcdefghij",
-            "Bearer " + "A" * 24, "AKIA" + "B" * 16, "xoxb-" + "1" * 12, "ghp_" + "c" * 22, "sk-" + "d" * 24, "TOKEN=zzzzzzzz",
-            "plain words here", "def f(x): return x", "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----"]
+    bits = [
+        STRIPE,
+        GOOGLE,
+        "Cookie: a=b",
+        "api_key=abcdefgh1234",
+        "password: hunter2xx",
+        "https://u:pw@host/x",
+        "eyJabcdefghi.abcdefghij.abcdefghij",
+        "Bearer " + "A" * 24,
+        "AKIA" + "B" * 16,
+        "xoxb-" + "1" * 12,
+        "ghp_" + "c" * 22,
+        "sk-" + "d" * 24,
+        "TOKEN=zzzzzzzz",
+        "plain words here",
+        "def f(x): return x",
+        "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
+    ]
     for _ in range(300):
         text = " ".join(rng.choice(bits) for _ in range(rng.randrange(1, 6)))
         text = text.upper() if rng.random() < 0.2 else text

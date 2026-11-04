@@ -20,8 +20,13 @@ DEFAULT_MIN_INTERVAL_S = 180.0
 
 
 class AutoIngest:
-    def __init__(self, db_path: Path, root: Path, min_interval_s: float = DEFAULT_MIN_INTERVAL_S,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self,
+        db_path: Path,
+        root: Path,
+        min_interval_s: float = DEFAULT_MIN_INTERVAL_S,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.db_path, self.root, self.min_interval_s, self._clock = Path(db_path), Path(root), min_interval_s, clock
         self._busy = threading.Lock()
         self._last_started: float | None = None
@@ -56,8 +61,11 @@ class AutoIngest:
         if not force and self._last_started is not None and now - self._last_started < self.min_interval_s:
             return {"ok": True, "started": False, "reason": "rate-limited"}
         if not self._busy.acquire(blocking=False):
-            return {"ok": True, "started": False, "reason": "already running"} if not wait else \
-                {"ok": False, "error": "an ingest is already running; try again in a moment"}
+            return (
+                {"ok": True, "started": False, "reason": "already running"}
+                if not wait
+                else {"ok": False, "error": "an ingest is already running; try again in a moment"}
+            )
         self._last_started = now
         if wait:
             return self._work()
@@ -65,5 +73,9 @@ class AutoIngest:
         return {"ok": True, "started": True}
 
     def status(self) -> dict:
-        return {"runs": self.runs, "running": self._busy.locked(), "last_ok_at": self.last_ok_at,
-                "last_error": self.last_error}
+        return {
+            "runs": self.runs,
+            "running": self._busy.locked(),
+            "last_ok_at": self.last_ok_at,
+            "last_error": self.last_error,
+        }

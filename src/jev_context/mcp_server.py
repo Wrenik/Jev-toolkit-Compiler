@@ -41,14 +41,19 @@ def quote(text: str) -> str:
 
 
 # Hints for clients (not security): both tools only read a local file and touch nothing outside it.
-READ_ONLY = {"title": "Search past sessions", "readOnlyHint": True, "destructiveHint": False,
-             "idempotentHint": True, "openWorldHint": False}
+READ_ONLY = {
+    "title": "Search past sessions",
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+}
 
 TOOLS = [
     {
         "name": "search_log",
         "description": (
-            "Full-text search of past Claude Code sessions (the long-term log). All words must appear; \"quote a phrase\", end a word with * for a prefix. Use it for exact look-back "
+            'Full-text search of past Claude Code sessions (the long-term log). All words must appear; "quote a phrase", end a word with * for a prefix. Use it for exact look-back '
             "after a /compact or /clear, or for 'what did we decide about X'. Use it rarely and on purpose, "
             "not every turn. Returns short snippets with ids; call get_turn for the full text of one hit."
         ),
@@ -59,8 +64,13 @@ TOOLS = [
                 "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT, "default": 5},
                 "days": {"type": "number", "description": "Only the last N days."},
                 "project": {"type": "string", "description": "Only this project name (see the CLI `stats`)."},
-                "offset": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0,
-                           "description": "Skip this many matches: the next page, using the 'next offset' the last answer gave."},
+                "offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000,
+                    "default": 0,
+                    "description": "Skip this many matches: the next page, using the 'next offset' the last answer gave.",
+                },
                 "role": {"type": "string", "enum": ["user", "assistant"]},
                 "kind": {"type": "string", "enum": ["text", "tool_use", "tool_result"]},
                 "tool": {"type": "string", "description": "Tool name, e.g. Bash."},
@@ -128,9 +138,13 @@ def call_tool(db: sqlite3.Connection | None, name: str, args: dict) -> str:
         if not fts_query(query):
             return "No searchable words in the query (letters and digits only; end a word with * for a prefix)."
         days = args.get("days")
-        since = time.time() - min(float(days), 36_500) * 86400 if isinstance(days, (int, float)) and not isinstance(days, bool) and days > 0 else None
+        since = (
+            time.time() - min(float(days), 36_500) * 86400
+            if isinstance(days, (int, float)) and not isinstance(days, bool) and days > 0
+            else None
+        )
         limit = _clamp(args.get("limit"), 1, MAX_LIMIT, 5)
-        flt = {k: args[k] for k in ('role', 'kind', 'tool') if isinstance(args.get(k), str)}
+        flt = {k: args[k] for k in ("role", "kind", "tool") if isinstance(args.get(k), str)}
         project = args["project"] if isinstance(args.get("project"), str) and args["project"] else None
         offset = _clamp(args.get("offset"), 0, MAX_OFFSET, 0)
         hits = search(db, query, limit, min(DEFAULT_BUDGET_TOKENS, MAX_BUDGET), since, project, offset=offset, **flt)
@@ -145,12 +159,17 @@ def call_tool(db: sqlite3.Connection | None, name: str, args: dict) -> str:
         lines = [f"showing {span} of {total} matches{more}"]
         for h in hits:
             when = datetime.fromtimestamp(h.ts).strftime("%Y-%m-%d %H:%M") if h.ts else "?"
-            lines.append(quote(f"{h.id} | {when} | {h.role}/{h.kind}\n  \"{h.snippet}\""))
+            lines.append(quote(f'{h.id} | {when} | {h.role}/{h.kind}\n  "{h.snippet}"'))
         return _frame(lines)
     turns = get_turn(db, args["id"], _clamp(args.get("around"), 0, MAX_AROUND, 1), MAX_CHARS)
     if not turns:
         return "no such turn"
-    return _frame([quote(f"--- {x['id']} {x['role']}/{x['kind']}{' (truncated)' if x['truncated'] else ''}\n{x['text']}") for x in turns])
+    return _frame(
+        [
+            quote(f"--- {x['id']} {x['role']}/{x['kind']}{' (truncated)' if x['truncated'] else ''}\n{x['text']}")
+            for x in turns
+        ]
+    )
 
 
 def handle(db: sqlite3.Connection | None, msg: dict) -> dict | None:
@@ -166,8 +185,13 @@ def handle(db: sqlite3.Connection | None, msg: dict) -> dict | None:
         return {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": message}}
 
     if method == "initialize":
-        return ok({"protocolVersion": PROTOCOL, "capabilities": {"tools": {}},
-                   "serverInfo": {"name": "jev-context", "version": "0.1.0"}})
+        return ok(
+            {
+                "protocolVersion": PROTOCOL,
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "jev-context", "version": "0.1.0"},
+            }
+        )
     if method == "ping":
         return ok({})
     if method == "tools/list":
@@ -217,7 +241,9 @@ def serve(db_path: Path | str | None = None, stdin=None, stdout=None) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="jev_context.mcp_server")
-    ap.add_argument("--db", default=None, help="same option as the jev_context CLI; default: JEV_HOME/var/log/jev-context.sqlite")
+    ap.add_argument(
+        "--db", default=None, help="same option as the jev_context CLI; default: JEV_HOME/var/log/jev-context.sqlite"
+    )
     ap.add_argument("legacy_db", nargs="?", help=argparse.SUPPRESS)  # old positional form
     a = ap.parse_args(argv)
     serve(a.legacy_db or a.db)

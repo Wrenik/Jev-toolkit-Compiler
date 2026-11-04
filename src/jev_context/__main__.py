@@ -41,7 +41,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int)
     p = sub.add_parser("ingest", help="read transcripts into the log (idempotent)")
     p.add_argument("--root", default=str(DEFAULT_ROOT))
-    p.add_argument("--dry-run", action="store_true", help="parse everything in memory and report; the log is not touched")
+    p.add_argument(
+        "--dry-run", action="store_true", help="parse everything in memory and report; the log is not touched"
+    )
     p = sub.add_parser("tier", help="apply retention: shrink old tool turns; optional cold purge")
     p.add_argument("--warm-days", type=float, default=30.0)
     p.add_argument("--cold-days", type=float, default=730.0)
@@ -62,7 +64,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--explain", action="store_true", help="show the BM25 score (lower = better match)")
     sub.add_parser("stats", help="per-project breakdown: sessions, turns, dates, top tools")
     sub.add_parser("status", help="what the log holds and where it lives")
-    p = sub.add_parser("setup", help="ingest, then check everything and print the one command that registers the MCP server")
+    p = sub.add_parser(
+        "setup", help="ingest, then check everything and print the one command that registers the MCP server"
+    )
     p.add_argument("--root", default=str(DEFAULT_ROOT))
     sub.add_parser("doctor", help="check the log, search and the local server; says what to fix")
     p = sub.add_parser("forget", help="delete logged turns (the transcript files are not touched)")
@@ -96,8 +100,21 @@ def _cmd_search(db, a) -> int:
         print(no_match_hint(db, a.query, since, a.project, flt))
     for h in hits:
         if a.as_json:
-            print(json.dumps({"id": h.id, "session": h.session_id, "ts": h.ts, "role": h.role, "kind": h.kind,
-                              "tool": h.tool, "snippet": h.snippet, "score": h.score}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {
+                        "id": h.id,
+                        "session": h.session_id,
+                        "ts": h.ts,
+                        "role": h.role,
+                        "kind": h.kind,
+                        "tool": h.tool,
+                        "snippet": h.snippet,
+                        "score": h.score,
+                    },
+                    ensure_ascii=False,
+                )
+            )
             continue
         when = datetime.fromtimestamp(h.ts).strftime("%Y-%m-%d %H:%M") if h.ts else "?"
         score = f"  score {h.score:.2f}" if a.explain else ""
@@ -131,7 +148,13 @@ def _cmd_setup(db, a) -> int:
 
     print("this run:", ingest_tree(db, Path(a.root)))
     print(chr(10).join(doctor(db, a.db)))
-    print(chr(10) + "Register the search tool with Claude Code (run once, then restart it):" + chr(10) + "  " + mcp_command(a.db))
+    print(
+        chr(10)
+        + "Register the search tool with Claude Code (run once, then restart it):"
+        + chr(10)
+        + "  "
+        + mcp_command(a.db)
+    )
     return 0
 
 
@@ -180,8 +203,14 @@ def main(argv: list[str] | None = None) -> int:
 
         print(stats(db, a.db))
         return 0
-    handlers = {"setup": _cmd_setup, "doctor": _cmd_doctor, "forget": _cmd_forget, "tier": _cmd_tier,
-                "search": _cmd_search, "get": _cmd_get}
+    handlers = {
+        "setup": _cmd_setup,
+        "doctor": _cmd_doctor,
+        "forget": _cmd_forget,
+        "tier": _cmd_tier,
+        "search": _cmd_search,
+        "get": _cmd_get,
+    }
     return handlers[a.cmd](db, a)
 
 

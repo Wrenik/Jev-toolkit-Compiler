@@ -31,8 +31,9 @@ class _Pending:
 
 
 class Broker:
-    def __init__(self, judge: Judge, window_s: float = WINDOW_S, partner_ttl_s: float = PARTNER_TTL_S,
-                 clock=time.monotonic):
+    def __init__(
+        self, judge: Judge, window_s: float = WINDOW_S, partner_ttl_s: float = PARTNER_TTL_S, clock=time.monotonic
+    ):
         self.judge = judge
         self.window_s = window_s
         self.partner_ttl_s = partner_ttl_s

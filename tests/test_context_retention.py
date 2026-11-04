@@ -11,18 +11,24 @@ NOW = 1_800_000_000.0
 
 def rec(uuid, content, age_days, typ="assistant"):
     ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(NOW - age_days * DAY))
-    return json.dumps({"type": typ, "uuid": uuid, "sessionId": "s" + uuid, "timestamp": ts, "message": {"content": content}})
+    return json.dumps(
+        {"type": typ, "uuid": uuid, "sessionId": "s" + uuid, "timestamp": ts, "message": {"content": content}}
+    )
 
 
 def make():
     db = connect(":memory:")
     big = "quokka " + "filler " * 200 + " deepneedle"
-    ingest_lines(db, [
-        rec("old", [{"type": "tool_result", "tool_use_id": "t", "content": big}], 90, typ="user"),
-        rec("new", [{"type": "tool_result", "tool_use_id": "t", "content": big}], 2, typ="user"),
-        rec("chat", [{"type": "text", "text": big}], 90),
-        rec("ancient", [{"type": "text", "text": "marmot note"}], 800),
-    ], project="p")
+    ingest_lines(
+        db,
+        [
+            rec("old", [{"type": "tool_result", "tool_use_id": "t", "content": big}], 90, typ="user"),
+            rec("new", [{"type": "tool_result", "tool_use_id": "t", "content": big}], 2, typ="user"),
+            rec("chat", [{"type": "text", "text": big}], 90),
+            rec("ancient", [{"type": "text", "text": "marmot note"}], 800),
+        ],
+        project="p",
+    )
     return db
 
 

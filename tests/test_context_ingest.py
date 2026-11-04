@@ -20,9 +20,15 @@ def rec(typ, uuid, content, sid="s1", ts="2026-10-01T10:00:00.000Z", model=None)
 def transcript():
     return [
         rec("user", "u1", f"please use {FAKE_ANTHROPIC} for the call"),
-        rec("assistant", "a1", [{"type": "text", "text": "Sure, reading the config."},
-                                {"type": "tool_use", "name": "Bash", "input": {"command": f"echo {FAKE_GITHUB}"}}],
-            model="m-1"),
+        rec(
+            "assistant",
+            "a1",
+            [
+                {"type": "text", "text": "Sure, reading the config."},
+                {"type": "tool_use", "name": "Bash", "input": {"command": f"echo {FAKE_GITHUB}"}},
+            ],
+            model="m-1",
+        ),
         rec("user", "u2", [{"type": "tool_result", "tool_use_id": "t1", "content": f"{FAKE_ENV}\nSETTING=1"}]),
         json.dumps({"type": "api-request", "uuid": "x1", "sessionId": "s1", "body": "x" * 500}),
         json.dumps({"type": "last-prompt", "sessionId": "s1"}),
@@ -39,8 +45,12 @@ def test_ingest_keeps_and_drops():
     db = connect(":memory:")
     stats = ingest_lines(db, transcript(), project="p")
     kinds = [(r["role"], r["kind"], r["tool"]) for r in db.execute("SELECT * FROM turn ORDER BY seq")]
-    assert kinds == [("user", "text", None), ("assistant", "text", None), ("assistant", "tool_use", "Bash"),
-                     ("user", "tool_result", None)]
+    assert kinds == [
+        ("user", "text", None),
+        ("assistant", "text", None),
+        ("assistant", "tool_use", "Bash"),
+        ("user", "tool_result", None),
+    ]
     assert stats["skipped"] + stats["malformed"] == 3 and stats["malformed"] == 1 and stats["added"] == 4
     assert "private musings" not in dump(db)
 
@@ -91,6 +101,8 @@ def test_file_ingest_skips_unchanged_and_picks_up_appends(tmp_path):
 
 def test_session_times_widen():
     db = connect(":memory:")
-    ingest_lines(db, [rec("user", "a", "x", ts="2026-10-02T00:00:00Z"), rec("user", "b", "y", ts="2026-10-01T00:00:00Z")])
+    ingest_lines(
+        db, [rec("user", "a", "x", ts="2026-10-02T00:00:00Z"), rec("user", "b", "y", ts="2026-10-01T00:00:00Z")]
+    )
     s = db.execute("SELECT first_ts, last_ts FROM session").fetchone()
     assert s["first_ts"] < s["last_ts"]

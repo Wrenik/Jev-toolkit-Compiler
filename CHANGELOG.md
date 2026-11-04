@@ -17,7 +17,7 @@ change behaviour; they are listed here.
 - `__main__.main` split into per-command functions.
 - Regression tests: npm token, `curl -u` and fullwidth e-mail are redacted before storage.
 
-## [0.1.0] - first public release (draft)
+## [0.1.0] - unreleased
 
 The numbers used inside the private monorepo this repository was cut from restart at 0.1.0 here.
 

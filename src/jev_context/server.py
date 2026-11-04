@@ -42,13 +42,27 @@ def handle_advise(judge: Judge, body: dict[str, Any], log_path: Path) -> dict[st
     if not isinstance(prompts, list) or tokens is None:
         return {"ok": False, "error": "need recent_prompts (list) and context_tokens (int)"}
     idle = _int(body.get("idle_ms"))
-    advice, _ = advise(judge, [str(p) for p in prompts[-MAX_PROMPTS:]], tokens,
-                       cache_warm=idle is None or idle < CACHE_TTL_MS, log_path=log_path)
+    advice, _ = advise(
+        judge,
+        [str(p) for p in prompts[-MAX_PROMPTS:]],
+        tokens,
+        cache_warm=idle is None or idle < CACHE_TTL_MS,
+        log_path=log_path,
+    )
     d = advice.decision
-    return {"ok": True, "action": d.action, "reason": d.reason, "judge_used": advice.judge_used,
-            "expected_turns": advice.expected_turns, "break_even_turns": d.break_even_turns,
-            "load_bearing": advice.load_bearing, "closure": advice.closure,
-            "cost_keep": round(d.cost_keep), "cost_compact": round(d.cost_compact), "cost_clear": round(d.cost_clear)}
+    return {
+        "ok": True,
+        "action": d.action,
+        "reason": d.reason,
+        "judge_used": advice.judge_used,
+        "expected_turns": advice.expected_turns,
+        "break_even_turns": d.break_even_turns,
+        "load_bearing": advice.load_bearing,
+        "closure": advice.closure,
+        "cost_keep": round(d.cost_keep),
+        "cost_compact": round(d.cost_compact),
+        "cost_clear": round(d.cost_clear),
+    }
 
 
 def handle_search(db_path: Path, body: dict[str, Any]) -> dict[str, Any]:
@@ -58,11 +72,15 @@ def handle_search(db_path: Path, body: dict[str, Any]) -> dict[str, Any]:
         hits = search(db, str(body.get("query", "")), limit=limit)
     finally:
         db.close()
-    return {"ok": True, "hits": [{"id": h.id, "ts": h.ts, "role": h.role, "kind": h.kind, "snippet": h.snippet} for h in hits]}
+    return {
+        "ok": True,
+        "hits": [{"id": h.id, "ts": h.ts, "role": h.role, "kind": h.kind, "snippet": h.snippet} for h in hits],
+    }
 
 
-def make_handler(broker: Broker, router_log: Path, advice_log: Path, db_path: Path,
-                 transcripts: Path) -> type[BaseHTTPRequestHandler]:
+def make_handler(
+    broker: Broker, router_log: Path, advice_log: Path, db_path: Path, transcripts: Path
+) -> type[BaseHTTPRequestHandler]:
     Base = router_server.make_handler(broker.view("router"), router_log)
     context_judge = broker.view("context")
     ingestor = AutoIngest(db_path, transcripts)
@@ -71,10 +89,20 @@ def make_handler(broker: Broker, router_log: Path, advice_log: Path, db_path: Pa
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/health" and self._allowed():
                 current = router_server.code_version()
-                self._send(200, {"ok": True, "judge": broker.judge.name, "model": broker.judge.model,
-                                 "code_version": started_version, "stale": current != started_version,
-                                 "has_context": True, "joint_calls": broker.joint_calls,
-                                 "solo_calls": broker.solo_calls, "ingest": ingestor.status()})
+                self._send(
+                    200,
+                    {
+                        "ok": True,
+                        "judge": broker.judge.name,
+                        "model": broker.judge.model,
+                        "code_version": started_version,
+                        "stale": current != started_version,
+                        "has_context": True,
+                        "joint_calls": broker.joint_calls,
+                        "solo_calls": broker.solo_calls,
+                        "ingest": ingestor.status(),
+                    },
+                )
             elif self.path != "/health":
                 self._send(404, {"ok": False})
 
@@ -99,13 +127,13 @@ def make_handler(broker: Broker, router_log: Path, advice_log: Path, db_path: Pa
                 else:
                     # {"auto": true}: rate-limited, runs in the background, returns at once (mod hooks).
                     # Otherwise (manual /jevctx ingest): runs now and returns the stats.
-                    result = (ingestor.request() if body.get("auto") else ingestor.request(force=True, wait=True))
+                    result = ingestor.request() if body.get("auto") else ingestor.request(force=True, wait=True)
             except Exception as err:  # noqa: BLE001  a bug must still answer, not reset the connection
                 result = {"ok": False, "error": f"internal {type(err).__name__}: {err}"}
             self._send(200, result)
 
     started_version = router_server.code_version()
-    Handler.ingestor = ingestor  # type: ignore[attr-defined]
+    Handler.ingestor = ingestor
     return Handler
 
 
@@ -115,10 +143,18 @@ def serve(port: int = DEFAULT_PORT, var_dir: str | Path | None = None, transcrip
     router_log = var / "router-log.jsonl"
     router_log.parent.mkdir(parents=True, exist_ok=True)
     broker = Broker(judge)
-    handler = make_handler(broker, router_log, var / "context-advice.jsonl", var / "log" / "jev-context.sqlite",
-                     transcripts or Path.home() / ".claude" / "projects")
+    handler = make_handler(
+        broker,
+        router_log,
+        var / "context-advice.jsonl",
+        var / "log" / "jev-context.sqlite",
+        transcripts or Path.home() / ".claude" / "projects",
+    )
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     handler.ingestor.request(force=True)  # type: ignore[attr-defined]  # once at start, in the background
-    print(f"jev_context+router listening on 127.0.0.1:{port} (judge={judge.name}, model={judge.model}, "
-          f"code {router_server.code_version()})", flush=True)
+    print(
+        f"jev_context+router listening on 127.0.0.1:{port} (judge={judge.name}, model={judge.model}, "
+        f"code {router_server.code_version()})",
+        flush=True,
+    )
     server.serve_forever()

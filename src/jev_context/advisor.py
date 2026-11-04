@@ -28,12 +28,17 @@ PROMPT_CHARS = 1_000
 RECENT_PROMPTS = 3
 
 QUESTIONS: dict[str, Question] = {
-    "continue": YesNo("Will the user most likely keep working on this same task with the assistant within the next hour?"),
+    "continue": YesNo(
+        "Will the user most likely keep working on this same task with the assistant within the next hour?"
+    ),
     "needed": Rate("How much of the earlier conversation is still needed for the next steps?", NEEDED_LEVELS),
     "closure": Pick(
         "What state is the current task in?",
-        {"finished": "the task is done", "paused": "the task is unfinished and will be resumed",
-         "switch": "the user is moving on to something unrelated"},
+        {
+            "finished": "the task is done",
+            "paused": "the task is unfinished and will be resumed",
+            "switch": "the user is moving on to something unrelated",
+        },
     ),
 }
 
@@ -81,8 +86,13 @@ def closure_of(probs: Mapping[str, float]) -> Closure | None:
     return None
 
 
-def interpret(verdict: Verdict, context_tokens: int, cache_warm: bool = True,
-              policy: Policy = Policy(), weights: Weights = Weights()) -> Advice:
+def interpret(
+    verdict: Verdict,
+    context_tokens: int,
+    cache_warm: bool = True,
+    policy: Policy = Policy(),
+    weights: Weights = Weights(),
+) -> Advice:
     p = verdict["continue"].p_yes  # type: ignore[union-attr]
     needed = verdict["needed"]
     load = round(needed.score / (len(NEEDED_LEVELS) - 1), 3)  # type: ignore[union-attr]
@@ -92,19 +102,33 @@ def interpret(verdict: Verdict, context_tokens: int, cache_warm: bool = True,
     return Advice(decision, n, round(p, 3), load, closure, judge_used=True)
 
 
-def fail_open(context_tokens: int, reason: str, cache_warm: bool = True,
-              policy: Policy = Policy(), weights: Weights = Weights()) -> Advice:
+def fail_open(
+    context_tokens: int, reason: str, cache_warm: bool = True, policy: Policy = Policy(), weights: Weights = Weights()
+) -> Advice:
     """Judge unavailable: keep, unless the hard ceiling forces a compact (that needs no judgement)."""
     decision = decide(Situation(context_tokens, 1.0, cache_warm), policy, weights)
     if decision.action != "compact_now":
-        decision = Decision("keep", f"judge unavailable ({reason}); doing nothing", decision.cost_keep,
-                            decision.cost_compact, decision.cost_clear, decision.break_even_turns)
+        decision = Decision(
+            "keep",
+            f"judge unavailable ({reason}); doing nothing",
+            decision.cost_keep,
+            decision.cost_compact,
+            decision.cost_clear,
+            decision.break_even_turns,
+        )
     return Advice(decision, 1.0, None, None, None, judge_used=False, note=reason)
 
 
-def advise(judge: Judge, recent_prompts: Sequence[str], context_tokens: int, cache_warm: bool = True,
-           policy: Policy = Policy(), weights: Weights = Weights(), log_path: Path | None = None,
-           share_with: Mapping[str, tuple[Any, Mapping[str, Question]]] | None = None) -> tuple[Advice, dict[str, Verdict]]:
+def advise(
+    judge: Judge,
+    recent_prompts: Sequence[str],
+    context_tokens: int,
+    cache_warm: bool = True,
+    policy: Policy = Policy(),
+    weights: Weights = Weights(),
+    log_path: Path | None = None,
+    share_with: Mapping[str, tuple[Any, Mapping[str, Question]]] | None = None,
+) -> tuple[Advice, dict[str, Verdict]]:
     """Ask the judge and advise. `share_with` adds other tools' (state, questions) to the SAME request;
     their verdicts come back as the second value so each tool can interpret its own."""
     parts: dict[str, tuple[Any, Mapping[str, Question]]] = {TOOL: (build_state(recent_prompts), QUESTIONS)}
@@ -120,10 +144,18 @@ def advise(judge: Judge, recent_prompts: Sequence[str], context_tokens: int, cac
     return advice, verdicts
 
 
-def _log(path: Path, advice: Advice, context_tokens: int, cache_warm: bool, prompts: Sequence[str], joint: list[str]) -> None:
+def _log(
+    path: Path, advice: Advice, context_tokens: int, cache_warm: bool, prompts: Sequence[str], joint: list[str]
+) -> None:
     joined = "\n".join(prompts[-RECENT_PROMPTS:])
-    record = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "context_tokens": context_tokens, "cache_warm": cache_warm,
-              "prompts_sha256": hashlib.sha256(joined.encode()).hexdigest(), "joint_tools": joint, **advice.to_dict()}
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "context_tokens": context_tokens,
+        "cache_warm": cache_warm,
+        "prompts_sha256": hashlib.sha256(joined.encode()).hexdigest(),
+        "joint_tools": joint,
+        **advice.to_dict(),
+    }
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")

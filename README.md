@@ -1,6 +1,13 @@
-# Jev-toolkit-compiler
+# Jev-toolkit-Compiler
 
-A context log and compact/clear advisor for **Claude Code**, built on a judgement model ([TypeSafe Jev](https://docs.typesafe.ai)). It is part of a family of small Jev tools; the base layer (judge interface, settings, the router mod) is [Jev-toolkit-usage](https://github.com/Wrenik/Jev-toolkit-usage), which this repository depends on. Other siblings: [Scanner](https://github.com/Wrenik/Jev-toolkit-Scanner), [Monitor](https://github.com/Wrenik/Jev-toolkit-Monitor), [FactCheck](https://github.com/Wrenik/Jev-toolkit-FactCheck), [Sources](https://github.com/Wrenik/Jev-toolkit-Sources) (links work once the repositories are public).
+[![tests](https://github.com/Wrenik/Jev-toolkit-Compiler/actions/workflows/tests.yml/badge.svg)](https://github.com/Wrenik/Jev-toolkit-Compiler/actions/workflows/tests.yml)
+![python](https://img.shields.io/badge/python-3.11%2B-blue)
+![status](https://img.shields.io/badge/status-alpha-orange)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+(The badges start working once the repository is public.)
+
+A context log and compact/clear advisor for **Claude Code**, built on a judgement model ([TypeSafe Jev](https://docs.typesafe.ai)). It is part of a family of small Jev tools; the base layer (judge interface, settings, the router mod) is [Jev-toolkit-usage](https://github.com/Wrenik/Jev-toolkit-usage), which this repository depends on.
 
 It does three things, all on a Claude **subscription** (no API tokens):
 
@@ -8,7 +15,7 @@ It does three things, all on a Claude **subscription** (no API tokens):
 2. **Search**: a command line and a read-only MCP server so you (or the agent, on purpose) can look things up later. Results are framed as quoted data, never as instructions.
 3. **Advise**: when the context is big, ask Jev whether the work will continue and how much of the context is still needed, then a cost model says keep, compact now, or clear. Advice only: it never runs `/compact` or `/clear`.
 
-## Status and limits (honest version)
+## Status and limits
 
 **Built and tested offline; the mod is not verified in the Claude Code desktop app.** What is measured and what is assumed:
 
@@ -27,10 +34,12 @@ Full details, the cost model, measurements and prior art: [docs/CONTEXT_COMPILER
 
 ## Install
 
+Want all six tools? Use [the install script](https://github.com/Wrenik/Jev-toolkit-usage/blob/main/docs/INSTALL_ALL.md) (`scripts/install_all.ps1` or `.sh` in Jev-toolkit-usage) instead of the steps below.
+
 Requires Python 3.11+ and `python` on your PATH (use `python3` on Linux/macOS; see the mod's `python` option or `JEV_PYTHON`).
 
 ```bash
-pip install "git+https://github.com/Wrenik/Jev-toolkit-usage.git" "git+https://github.com/Wrenik/Jev-toolkit-compiler.git"   # once public
+pip install "git+https://github.com/Wrenik/Jev-toolkit-usage.git" "git+https://github.com/Wrenik/Jev-toolkit-Compiler.git"   # once public
 # from local clones, before anything is public (the second line must use --no-deps: the dependency
 # above points at a repository that is not public yet, so pip would try to clone it and fail):
 pip install -e ../Jev-toolkit-usage && pip install --no-deps -e ".[dev]"
@@ -76,8 +85,8 @@ Hits are marked with `[brackets]`. `search --json` prints one JSON object per li
 ## Install the Claude Code mod (`jev-context`)
 
 ```
-/plugin marketplace add Wrenik/Jev-toolkit-compiler
-/plugin install jev-context --marketplace Wrenik/Jev-toolkit-compiler
+/plugin marketplace add Wrenik/Jev-toolkit-Compiler
+/plugin install jev-context --marketplace Wrenik/Jev-toolkit-Compiler
 ```
 
 or add `claude-mod/jev-context` to `CLAUDE_CODE_PLUGIN_DIRS`. The mod starts `python -m jev_context serve` itself (no checkout path needed). `/jevctx` shows its state; `/jevctx mode off` stops the advisor; `/jevctx ingest` and `/jevctx search <words>` use the log. The mod asks only when the context is above 100,000 tokens, at most once per 5 minutes. When [Jev-toolkit-usage](https://github.com/Wrenik/Jev-toolkit-usage)'s `jev-router` mod is also installed, both share one judge request through the same local server; each also works alone.
@@ -110,7 +119,7 @@ The mod has never been confirmed to work inside the Claude Code desktop app by a
 ## Privacy
 
 * Ingest, search, `forget`, `tier` and the MCP server are local SQLite operations; the MCP server makes no network calls.
-* Only the **advisor** talks to TypeSafe (Jev): the last up to 5 prompts of the current session (secrets redacted first) plus the question set, when the context is big. Jev is used because, as of today, it is the only model of its kind; **the plan is to replace it with a local or European model through the `Judge` interface in `jev_core`**.
+* Only the **advisor** talks to TypeSafe (Jev): the last up to 5 prompts of the current session (secrets redacted first) plus the question set, when the context is big. **Jev is used because, as of today, it is the only model of its kind on the market, not because sending data to a US company is the goal. The plan is to replace it with a local model or a European provider** through the `Judge` interface in `jev_core`.
 * Redaction is best effort and runs after Claude Code wrote the transcript, so the raw transcripts in `~/.claude/projects` still hold every secret. The log holds a second, redacted copy. Treat the database as personal data. Details: section 9 of the document.
 * Delete everything: `python -m jev_context forget --all --yes`, or delete `~/.jev-toolkit/var/log/`.
 
@@ -118,6 +127,21 @@ The mod has never been confirmed to work inside the Claude Code desktop app by a
 
 Several tools already index Claude Code transcripts or add memory: [claude-mem](https://github.com/thedotmack/claude-mem), [claude-session-search](https://pypi.org/project/claude-session-search/), Memex, tim0120's history MCP, and compressors such as sqz. This repository is a re-implementation of known ideas for learning, with redaction at ingest, retention tiers and a cost-based keep/compact/clear decision made by a judgement model as its differences. See the survey and comparison in [docs/CONTEXT_COMPILER.md](docs/CONTEXT_COMPILER.md) (sections 2 and 10). No code from those projects is used.
 
+## The Jev toolkit family
+
+| Repository | What it is | Depends on |
+|---|---|---|
+| [Jev-toolkit-usage](https://github.com/Wrenik/Jev-toolkit-usage) | `jev_core` (judge interface, Jev adapter, cache, decision log, redaction, settings and data location) and the model/effort router | - |
+| **Jev-toolkit-Compiler** (this one) | context log, search and a compact/clear advisor | usage |
+| [Jev-toolkit-Scanner](https://github.com/Wrenik/Jev-toolkit-Scanner) | prompt-injection scanner (experimental) | usage |
+| [Jev-toolkit-Monitor](https://github.com/Wrenik/Jev-toolkit-Monitor) | agent monitor (experimental) | usage |
+| [Jev-toolkit-FactCheck](https://github.com/Wrenik/Jev-toolkit-FactCheck) | fact checker with hover evidence | usage (Scanner optional) |
+| [Jev-toolkit-Sources](https://github.com/Wrenik/Jev-toolkit-Sources) | source restriction (allowlist policy) | usage, FactCheck |
+
+All six on one machine: [docs/INSTALL_ALL.md](https://github.com/Wrenik/Jev-toolkit-usage/blob/main/docs/INSTALL_ALL.md) (a script does it). The links work once the repositories are public.
+
 ## Contributing, security, license
 
-[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [MIT](LICENSE). Copyright (c) 2026 Eric Ährlund.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Issues and suggestions are welcome, especially where an existing tool already does it better.
+
+Licensed under the [MIT License](LICENSE).

@@ -15,11 +15,14 @@ except ImportError:  # pragma: no cover
 
 # Level 19 made ingest about a third slower on a 1 GB test for little extra saving; 6 is the speed/size knee.
 ZSTD_LEVEL = 6
+
+
 def default_db() -> Path:
     """``<JEV_HOME>/var/log/jev-context.sqlite`` (see ``jev_core.config``)."""
     from jev_core.config import var_path
 
     return var_path() / "log" / "jev-context.sqlite"
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS session (
@@ -121,7 +124,9 @@ def add_turn(db: sqlite3.Connection, t: NewTurn) -> bool:
     )
     if cur.rowcount and sha is not None:
         codec, data = pack(raw)
-        db.execute("INSERT OR IGNORE INTO blob(sha256, codec, size, data) VALUES (?,?,?,?)", (sha, codec, len(raw), data))
+        db.execute(
+            "INSERT OR IGNORE INTO blob(sha256, codec, size, data) VALUES (?,?,?,?)", (sha, codec, len(raw), data)
+        )
     return bool(cur.rowcount)
 
 

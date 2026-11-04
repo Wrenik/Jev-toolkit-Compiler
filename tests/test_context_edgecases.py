@@ -15,11 +15,26 @@ def rec(uuid, content, sid="s1"):
 
 
 def test_odd_json_shapes_do_not_crash_ingest():
-    lines = ["[1,2,3]", "42", '"str"', "null", "{", "", "   ",
-             json.dumps({"type": "user", "sessionId": "s", "uuid": "a", "message": "not a dict"}),
-             json.dumps({"type": "user", "sessionId": 5, "uuid": "b", "message": {"content": "x"}}),
-             json.dumps({"type": "assistant", "sessionId": "s", "uuid": "c", "message": {"content": [1, None, {"type": "text", "text": "ok zebra"}]}}),
-             "[" * 100_000]
+    lines = [
+        "[1,2,3]",
+        "42",
+        '"str"',
+        "null",
+        "{",
+        "",
+        "   ",
+        json.dumps({"type": "user", "sessionId": "s", "uuid": "a", "message": "not a dict"}),
+        json.dumps({"type": "user", "sessionId": 5, "uuid": "b", "message": {"content": "x"}}),
+        json.dumps(
+            {
+                "type": "assistant",
+                "sessionId": "s",
+                "uuid": "c",
+                "message": {"content": [1, None, {"type": "text", "text": "ok zebra"}]},
+            }
+        ),
+        "[" * 100_000,
+    ]
     db = connect(":memory:")
     stats = ingest_lines(db, lines)
     assert stats["added"] == 1 and stats["malformed"] >= 5
@@ -70,7 +85,7 @@ def test_second_writer_waits_instead_of_failing(tmp_path):
 def test_cli_search_survives_a_console_without_unicode(tmp_path, monkeypatch, capsys):
     dbp = tmp_path / "x.sqlite"
     db = connect(dbp)
-    ingest_lines(db, [rec("u1", "emoji \U0001F600 snö zebra")])
+    ingest_lines(db, [rec("u1", "emoji \U0001f600 snö zebra")])
     db.commit()
     db.close()
     buf = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
@@ -80,8 +95,15 @@ def test_cli_search_survives_a_console_without_unicode(tmp_path, monkeypatch, ca
 
 
 def test_mcp_rejects_bad_params_without_crashing():
-    for params in ([], "x", None, {"name": "search_log", "arguments": [1]}, {"name": "search_log", "arguments": {"query": "a", "days": 1e308}},
-                   {"name": "search_log", "arguments": {"query": "a", "days": True}}, {"name": 5}):
+    for params in (
+        [],
+        "x",
+        None,
+        {"name": "search_log", "arguments": [1]},
+        {"name": "search_log", "arguments": {"query": "a", "days": 1e308}},
+        {"name": "search_log", "arguments": {"query": "a", "days": True}},
+        {"name": 5},
+    ):
         out = handle(None, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params})
         assert out is not None and ("result" in out or "error" in out)
 

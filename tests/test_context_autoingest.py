@@ -17,9 +17,19 @@ from jev_context.store import connect
 def write_transcript(root, name, text, uuid):
     folder = root / "proj"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{name}.jsonl").write_text(json.dumps({
-        "type": "user", "uuid": uuid, "sessionId": name, "timestamp": "2026-10-01T10:00:00Z", "message": {"content": text}}) + "\n",
-        encoding="utf-8")
+    (folder / f"{name}.jsonl").write_text(
+        json.dumps(
+            {
+                "type": "user",
+                "uuid": uuid,
+                "sessionId": name,
+                "timestamp": "2026-10-01T10:00:00Z",
+                "message": {"content": text},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def wait_for(cond, seconds=5.0):
@@ -94,9 +104,14 @@ def test_overlapping_requests_do_not_run_twice(setup, monkeypatch):
 
 # --- through the HTTP handler -----------------------------------------------------------------
 
+
 def post(httpd, path, body):
-    req = urllib.request.Request(f"http://127.0.0.1:{httpd.server_address[1]}{path}", data=json.dumps(body).encode(), method="POST",
-                                 headers={"X-Jev-Router": "1"})
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{httpd.server_address[1]}{path}",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={"X-Jev-Router": "1"},
+    )
     return json.loads(urllib.request.urlopen(req, timeout=15).read())
 
 
