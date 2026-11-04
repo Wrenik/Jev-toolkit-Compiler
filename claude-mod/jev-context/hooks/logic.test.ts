@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { MAX_PROMPTS, MIN_GAP_MS, describe, pushPrompt, shouldAsk, toastFor } from './logic'
+import { INGEST_MIN_GAP_MS, MAX_PROMPTS, MIN_GAP_MS, describe, pushPrompt, shouldAsk, shouldIngest, toastFor } from './logic'
 import type { AskInput } from './logic'
 
 const base: AskInput = { mode: 'advise', contextTokens: 300_000, now: 1_000_000, lastAskedAt: null, isSubagent: false }
@@ -39,4 +39,12 @@ test('describe covers every case', async () => {
   expect(describe(null)).toBe('no advice yet')
   expect(describe({ ok: false, error: 'x' })).toContain('x')
   expect(describe({ ok: true, action: 'keep', reason: 'r', judge_used: false })).toContain('unavailable')
+})
+
+test('auto-ingest runs the first time, then at most once per gap, and never when switched off', async () => {
+  const now = 10_000_000
+  expect(shouldIngest({ enabled: true, now, lastAt: null })).toBe(true)
+  expect(shouldIngest({ enabled: true, now, lastAt: now - 1000 })).toBe(false)
+  expect(shouldIngest({ enabled: true, now, lastAt: now - INGEST_MIN_GAP_MS })).toBe(true)
+  expect(shouldIngest({ enabled: false, now, lastAt: null })).toBe(false)
 })

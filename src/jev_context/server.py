@@ -20,7 +20,7 @@ from jev_router import server as router_server
 
 from .advisor import advise
 from .broker import Broker
-from .ingest import ingest_tree
+from .autoingest import AutoIngest
 from .search import search
 from .store import connect
 
@@ -61,18 +61,11 @@ def handle_search(db_path: Path, body: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "hits": [{"id": h.id, "ts": h.ts, "role": h.role, "kind": h.kind, "snippet": h.snippet} for h in hits]}
 
 
-def handle_ingest(db_path: Path, root: Path) -> dict[str, Any]:
-    db = connect(db_path)
-    try:
-        return {"ok": True, "stats": ingest_tree(db, root)}
-    finally:
-        db.close()
-
-
 def make_handler(broker: Broker, router_log: Path, advice_log: Path, db_path: Path,
                  transcripts: Path) -> type[BaseHTTPRequestHandler]:
     Base = router_server.make_handler(broker.view("router"), router_log)
     context_judge = broker.view("context")
+    ingestor = AutoIngest(db_path, transcripts)
 
     class Handler(Base):  # type: ignore[valid-type, misc]
         def do_GET(self) -> None:  # noqa: N802
@@ -81,7 +74,7 @@ def make_handler(broker: Broker, router_log: Path, advice_log: Path, db_path: Pa
                 self._send(200, {"ok": True, "judge": broker.judge.name, "model": broker.judge.model,
                                  "code_version": started_version, "stale": current != started_version,
                                  "has_context": True, "joint_calls": broker.joint_calls,
-                                 "solo_calls": broker.solo_calls})
+                                 "solo_calls": broker.solo_calls, "ingest": ingestor.status()})
             elif self.path != "/health":
                 self._send(404, {"ok": False})
 
@@ -104,12 +97,15 @@ def make_handler(broker: Broker, router_log: Path, advice_log: Path, db_path: Pa
                 elif self.path == "/search":
                     result = handle_search(db_path, body)
                 else:
-                    result = handle_ingest(db_path, transcripts)
+                    # {"auto": true}: rate-limited, runs in the background, returns at once (mod hooks).
+                    # Otherwise (manual /jevctx ingest): runs now and returns the stats.
+                    result = (ingestor.request() if body.get("auto") else ingestor.request(force=True, wait=True))
             except Exception as err:  # noqa: BLE001  a bug must still answer, not reset the connection
                 result = {"ok": False, "error": f"internal {type(err).__name__}: {err}"}
             self._send(200, result)
 
     started_version = router_server.code_version()
+    Handler.ingestor = ingestor  # type: ignore[attr-defined]
     return Handler
 
 
@@ -119,11 +115,10 @@ def serve(port: int = DEFAULT_PORT, var_dir: str | Path | None = None, transcrip
     router_log = var / "router-log.jsonl"
     router_log.parent.mkdir(parents=True, exist_ok=True)
     broker = Broker(judge)
-    server = ThreadingHTTPServer(
-        ("127.0.0.1", port),
-        make_handler(broker, router_log, var / "context-advice.jsonl", var / "log" / "jev-context.sqlite",
-                     transcripts or Path.home() / ".claude" / "projects"),
-    )
+    handler = make_handler(broker, router_log, var / "context-advice.jsonl", var / "log" / "jev-context.sqlite",
+                     transcripts or Path.home() / ".claude" / "projects")
+    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    handler.ingestor.request(force=True)  # once at start, in the background
     print(f"jev_context+router listening on 127.0.0.1:{port} (judge={judge.name}, model={judge.model}, "
           f"code {router_server.code_version()})", flush=True)
     server.serve_forever()

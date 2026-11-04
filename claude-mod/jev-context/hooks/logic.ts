@@ -55,3 +55,14 @@ export function describe(a: Advice | null): string {
   if (!a.ok) return `no advice: ${a.error}`
   return `${a.action}: ${a.reason}${a.judge_used === false ? ' [judge was unavailable]' : ''}`
 }
+
+// Automatic ingest of new transcripts (session start, session end): at most once per this long per process.
+// The server rate-limits as well, so several sessions together do not re-scan the folder every few seconds.
+export const INGEST_MIN_GAP_MS = 3 * 60 * 1000
+
+export type IngestInput = { enabled: boolean; now: number; lastAt: number | null }
+
+export function shouldIngest(s: IngestInput): boolean {
+  if (!s.enabled) return false
+  return s.lastAt === null || s.now - s.lastAt >= INGEST_MIN_GAP_MS
+}

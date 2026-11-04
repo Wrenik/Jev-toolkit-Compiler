@@ -1,6 +1,6 @@
 import type { Register } from 'claude-code'
 
-import { MIN_CONTEXT_TOKENS, MODES, PERSON_ORIGINS, describe, pushPrompt, shouldAsk, toastFor } from './logic'
+import { MIN_CONTEXT_TOKENS, MODES, PERSON_ORIGINS, describe, pushPrompt, shouldAsk, shouldIngest, toastFor } from './logic'
 import type { Advice, Mode } from './logic'
 
 // jev-context: before a prompt is sent, and only when the context is big, ask the local jev_context
@@ -22,6 +22,8 @@ let lastAskedAt: number | null = null
 let lastTurnEnd: number | null = null
 let lastAdvice: Advice | null = null
 let lastSeen = 'no prompt seen since load'
+let lastIngestAt: number | null = null
+let lastIngest = 'no automatic ingest yet'
 
 async function getMode($: any): Promise<Mode> {
   const mode = await $.store.get('mode')
@@ -82,6 +84,32 @@ async function ensureServer($: any): Promise<void> {
   }
 }
 
+// Asks the server to ingest new transcripts in the background. Rate limited here and on the server, never
+// throws, never delays a prompt; a failure is only logged (and shown by /jevctx).
+async function autoIngest($: any, why: string): Promise<void> {
+  try {
+    const now = await $.clock.now()
+    const enabled = (await $.store.get('autoIngest')) !== 'off'
+    if (!shouldIngest({ enabled, now, lastAt: lastIngestAt })) return
+    // A server that is still starting ingests by itself when it is up; wait briefly for one that is not.
+    let up = !!(await health($))?.ok
+    for (let i = 0; !up && i < 10; i += 1) {
+      await $.clock.sleep(500)
+      up = !!(await health($))?.ok
+    }
+    if (!up) {
+      lastIngest = `${why}: server not reachable`
+      return
+    }
+    lastIngestAt = now
+    const r = await fetchJson($, '/ingest', { method: 'POST', body: JSON.stringify({ auto: true }) }, 3000)
+    lastIngest = `${why}: ${r.ok ? (r.started ? 'started' : r.reason) : r.error}`
+  } catch (err) {
+    lastIngest = `${why}: failed (${String((err as Error)?.message ?? err)})`
+    $.ui.log(`jev-context: automatic ingest ${lastIngest}`, { to: 'debug' })
+  }
+}
+
 async function askAdvice($: any, contextTokens: number): Promise<Advice> {
   const now = await $.clock.now()
   const body = JSON.stringify({
@@ -101,9 +129,16 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    $.command.register({ name: 'jevctx', description: 'jev-context: status, /jevctx mode off|advise, ingest, search <words>' })
+    $.command.register({ name: 'jevctx', description: 'jev-context: status, /jevctx mode off|advise, ingest, autoingest on|off, search <words>' })
     void ensureServer($)
+    void autoIngest($, 'session start')
     return started
+  })
+
+  // A short, bounded wait: the server answers at once (the ingest itself runs in its own thread).
+  on('session.end', async ($, e, next) => {
+    await Promise.race([autoIngest($, 'session end'), $.clock.sleep(2500)])
+    return next(e)
   })
 
   on('command.run', { command: 'jevctx' }, async ($, e, next) => {
@@ -111,6 +146,10 @@ export const register: Register = (on, options) => {
     if (word === 'mode' && (MODES as readonly string[]).includes(rest[0])) {
       await $.store.set('mode', rest[0])
       return { text: `jev-context mode: ${rest[0]} (applies to every session)` }
+    }
+    if (word === 'autoingest' && (rest[0] === 'on' || rest[0] === 'off')) {
+      await $.store.set('autoIngest', rest[0])
+      return { text: `jev-context automatic ingest: ${rest[0]} (applies to every session; /jevctx ingest still works)` }
     }
     if (word === 'ingest') {
       try {
@@ -138,6 +177,8 @@ export const register: Register = (on, options) => {
         `shared judge requests (router + context in one call): ${h?.joint_calls ?? '?'}, separate: ${h?.solo_calls ?? '?'}`,
         `asks only above ${MIN_CONTEXT_TOKENS.toLocaleString()} tokens of context, at most every 5 min`,
         'privacy: the last few prompts are sent to TypeSafe (secrets redacted first); /jevctx mode off stops that',
+        `automatic ingest: ${(await $.store.get('autoIngest')) === 'off' ? 'off' : 'on'} (at session start and end, at most every 3 min; /jevctx autoingest on|off); last: ${lastIngest}`,
+        `server ingest: ${JSON.stringify(h?.ingest ?? null)}`,
         `last advice: ${describe(lastAdvice)}`,
         `last prompt seen: ${lastSeen}`,
       ].join('\n'),
