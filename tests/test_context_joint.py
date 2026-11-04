@@ -4,12 +4,12 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 import pytest
+from jev_core import FakeJudge, JudgeUnavailable
+from jev_router.policy import QUESTIONS as ROUTER_QUESTIONS
 
 from jev_context.advisor import QUESTIONS as CONTEXT_QUESTIONS
 from jev_context.broker import Broker
 from jev_context.server import make_handler
-from jev_core import FakeJudge, JudgeUnavailable
-from jev_router.policy import QUESTIONS as ROUTER_QUESTIONS
 
 
 def run_together(broker, tool_a, tool_b):

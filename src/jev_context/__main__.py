@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -12,6 +13,15 @@ from .search import DEFAULT_BUDGET_TOKENS, get_turn, search
 from .store import connect, default_db
 
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
+
+
+def _version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("jev-toolkit-compiler")
+    except PackageNotFoundError:  # pragma: no cover
+        return "unknown (not installed)"
 
 
 def log_stats(db, path: str | None = None) -> str:
@@ -24,6 +34,7 @@ def log_stats(db, path: str | None = None) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="jev_context")
+    ap.add_argument("--version", action="version", version=f"jev_context {_version()}")
     ap.add_argument("--db", default=None, help="log database; default: JEV_HOME/var/log/jev-context.sqlite")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("serve", help="local server for the Claude Code mod")
@@ -45,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--role", choices=["user", "assistant"])
     p.add_argument("--kind", choices=["text", "tool_use", "tool_result"])
     p.add_argument("--tool", help="tool name, e.g. Bash")
+    p.add_argument("--json", action="store_true", dest="as_json", help="one JSON object per line, for scripts")
     p.add_argument("--explain", action="store_true", help="show the BM25 score (lower = better match)")
     sub.add_parser("status", help="what the log holds and where it lives")
     p = sub.add_parser("setup", help="ingest, then check everything and print the one command that registers the MCP server")
@@ -112,9 +124,13 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "search":
         since = (datetime.now() - timedelta(days=a.days)).timestamp() if a.days else None
         hits = search(db, a.query, a.limit, a.budget, since, a.project, a.half_life, role=a.role, kind=a.kind, tool=a.tool)
-        if not hits:
+        if not hits and not a.as_json:
             print("No matches. All words must appear; use fewer words, a prefix (word*), or \"an exact phrase\".")
         for h in hits:
+            if a.as_json:
+                print(json.dumps({"id": h.id, "session": h.session_id, "ts": h.ts, "role": h.role, "kind": h.kind,
+                                  "tool": h.tool, "snippet": h.snippet, "score": h.score}, ensure_ascii=False))
+                continue
             when = datetime.fromtimestamp(h.ts).strftime("%Y-%m-%d %H:%M") if h.ts else "?"
             score = f"  score {h.score:.2f}" if a.explain else ""
             print(f"{h.id}  {when}  {h.role}/{h.kind}{'/' + h.tool if h.tool else ''}{score}\n    {h.snippet}")

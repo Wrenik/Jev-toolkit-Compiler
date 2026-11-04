@@ -1,11 +1,12 @@
 import json
 
-from jev_context.cost import Policy
-from jev_context.advisor import NEEDED_LEVELS, QUESTIONS, advise, build_state, closure_of
 from jev_core import FakeJudge, JudgeUnavailable, PickAnswer, RateAnswer, YesNoAnswer
 from jev_core.joint import ask_together
 from jev_router.policy import QUESTIONS as ROUTER_QUESTIONS
 from jev_router.policy import signals_of
+
+from jev_context.advisor import NEEDED_LEVELS, QUESTIONS, advise, build_state, closure_of
+from jev_context.cost import Policy
 
 # With the cautious default summary ratio (0.11) break-even sits near 10 turns whatever the context
 # size, so the "compact" tests use a ratio inside the measured range (0.03-0.11).

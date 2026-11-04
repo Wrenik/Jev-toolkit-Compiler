@@ -5,13 +5,13 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 import pytest
+from jev_core import FakeJudge
 
 from jev_context.autoingest import AutoIngest
 from jev_context.broker import Broker
 from jev_context.search import search
 from jev_context.server import make_handler
 from jev_context.store import connect
-from jev_core import FakeJudge
 
 
 def write_transcript(root, name, text, uuid):

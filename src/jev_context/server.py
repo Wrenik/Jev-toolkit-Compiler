@@ -19,8 +19,8 @@ from jev_core.config import var_path
 from jev_router import server as router_server
 
 from .advisor import advise
-from .broker import Broker
 from .autoingest import AutoIngest
+from .broker import Broker
 from .search import search
 from .store import connect
 
@@ -118,7 +118,7 @@ def serve(port: int = DEFAULT_PORT, var_dir: str | Path | None = None, transcrip
     handler = make_handler(broker, router_log, var / "context-advice.jsonl", var / "log" / "jev-context.sqlite",
                      transcripts or Path.home() / ".claude" / "projects")
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
-    handler.ingestor.request(force=True)  # once at start, in the background
+    handler.ingestor.request(force=True)  # type: ignore[attr-defined]  # once at start, in the background
     print(f"jev_context+router listening on 127.0.0.1:{port} (judge={judge.name}, model={judge.model}, "
           f"code {router_server.code_version()})", flush=True)
     server.serve_forever()

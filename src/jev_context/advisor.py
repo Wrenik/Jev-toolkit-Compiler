@@ -83,10 +83,10 @@ def closure_of(probs: Mapping[str, float]) -> Closure | None:
 
 def interpret(verdict: Verdict, context_tokens: int, cache_warm: bool = True,
               policy: Policy = Policy(), weights: Weights = Weights()) -> Advice:
-    p = verdict["continue"].p_yes
+    p = verdict["continue"].p_yes  # type: ignore[union-attr]
     needed = verdict["needed"]
-    load = round(needed.score / (len(NEEDED_LEVELS) - 1), 3)
-    closure = closure_of(verdict["closure"].probabilities)
+    load = round(needed.score / (len(NEEDED_LEVELS) - 1), 3)  # type: ignore[union-attr]
+    closure = closure_of(verdict["closure"].probabilities)  # type: ignore[union-attr]
     n = expected_turns(p, closure)
     decision = decide(Situation(context_tokens, n, cache_warm, load_bearing=load, closure=closure), policy, weights)
     return Advice(decision, n, round(p, 3), load, closure, judge_used=True)

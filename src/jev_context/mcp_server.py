@@ -175,6 +175,7 @@ def serve(db_path: Path | str | None = None, stdin=None, stdout=None) -> None:
             if hasattr(stream, "reconfigure"):
                 stream.reconfigure(encoding="utf-8")
     stdin, stdout = stdin or sys.stdin, stdout or sys.stdout
+    out: dict | None
     for line in stdin:
         line = line.strip()
         if not line:

@@ -116,7 +116,8 @@ def search(
                         r["snip"][:SNIPPET_CHARS], score))
     hits.sort(key=lambda h: h.score)
 
-    out, used = [], 0
+    out: list[Hit] = []
+    used = 0
     for h in hits[:limit]:
         cost = (len(h.snippet) + 80) // CHARS_PER_TOKEN  # snippet plus the id/metadata line
         if out and used + cost > budget_tokens:
@@ -138,7 +139,7 @@ def get_turn(db: sqlite3.Connection, turn_id: str, around: int = 0, max_chars: i
     ).fetchall()
     result = []
     for r in rows:
-        body = get_blob(db, r["blob_sha"]) if r["blob_sha"] and r["id"] == turn_id else r["text"]
+        body = (get_blob(db, r["blob_sha"]) if r["blob_sha"] and r["id"] == turn_id else None) or r["text"]  # blob gone: show the clipped text
         truncated = len(body) > max_chars
         result.append({"id": r["id"], "ts": r["ts"], "role": r["role"], "kind": r["kind"], "tool": r["tool"],
                        "text": body[:max_chars], "truncated": truncated})

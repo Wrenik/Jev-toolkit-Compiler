@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/Wrenik/Jev-toolkit-Compiler/security/advisories/new
+    about: Report a vulnerability privately (see SECURITY.md). Redaction gaps with inert examples are fine as normal issues.

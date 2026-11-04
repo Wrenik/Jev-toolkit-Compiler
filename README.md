@@ -31,9 +31,12 @@ Requires Python 3.11+ and `python` on your PATH (use `python3` on Linux/macOS; s
 
 ```bash
 pip install "git+https://github.com/Wrenik/Jev-toolkit-usage.git" "git+https://github.com/Wrenik/Jev-toolkit-compiler.git"   # once public
-# from local clones, before anything is public:
-pip install -e ../Jev-toolkit-usage && pip install -e ".[dev]"
+# from local clones, before anything is public (the second line must use --no-deps: the dependency
+# above points at a repository that is not public yet, so pip would try to clone it and fail):
+pip install -e ../Jev-toolkit-usage && pip install --no-deps -e ".[dev]"
 ```
+
+Use a fresh virtual environment (`python -m venv .venv`). `python -m jev_context --version` checks the install.
 
 Put your TypeSafe key in `~/.jev-toolkit/.env` (or the folder named by `JEV_HOME`; see Jev-toolkit-usage). The log lives in `~/.jev-toolkit/var/log/jev-context.sqlite` and the advisor's decision log in `~/.jev-toolkit/var/context-advice.jsonl`.
 
@@ -47,6 +50,24 @@ python -m jev_context search "some words you remember"
 python -m jev_context status                      # what the log holds and where it lives
 python -m jev_context forget --session ID --yes   # delete one session's rows (or --project / --all)
 ```
+
+What a session looks like (made-up transcript; the key and address are inert examples):
+
+```
+$ python -m jev_context ingest --root ./demo
+this run: {'records': 3, 'added': 3, 'duplicates': 0, 'skipped': 0, 'malformed': 0, 'redactions': 2, 'files': 1}
+log now: 1 sessions, 3 turns, 2 redactions, database 0.0 MB at ~/.jev-toolkit/var/log/jev-context.sqlite
+
+$ python -m jev_context search "invoices index"
+a1:0  2026-10-02 11:00  assistant/text
+    The [invoices] query has no [index] on customer_id; add one and the export drops from 90 s to 2 s.
+
+$ python -m jev_context search "mail staging"
+u2:0  2026-10-02 11:05  user/text
+    Use key [REDACTED:anthropic_key] for the [staging] run, [mail] me at [REDACTED:email]
+```
+
+Hits are marked with `[brackets]`. `search --json` prints one JSON object per line for scripts; `get ID --around 2` shows a turn with its neighbours. `skipped` counts records that are not conversation (bookkeeping), `malformed` lines that are not valid JSON objects (for example a transcript cut off mid-write), `errors` files that could not be read.
 
 `setup` prints the exact `claude mcp add ...` line for your machine; the plugin also ships its own `.mcp.json`, so with the mod installed the search tool is registered for you.
 

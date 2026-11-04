@@ -60,7 +60,7 @@ class Broker:
                 recent = any(t != tool and now - seen < self.partner_ttl_s for t, seen in self._last_seen.items())
                 if recent:
                     self._pending[tool] = mine
-        if other is not None:
+        if other is not None and partner is not None:
             return self._run_joint(parts, partner, other, tool, mine)
         if tool in self._pending and self._pending[tool] is mine:
             mine.done.wait(self.window_s)

@@ -1,6 +1,6 @@
 {
   "name": "jev-context",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "Advises when a big Claude Code context is worth compacting or clearing, and keeps a searchable log of past sessions. Advice only: it never runs /compact or /clear.",
   "author": { "name": "Henric" },
   "license": "MIT",

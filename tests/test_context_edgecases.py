@@ -2,7 +2,6 @@
 
 import io
 import json
-import sqlite3
 
 from jev_context import __main__ as cli
 from jev_context.ingest import ingest_lines, ingest_tree, project_label
@@ -92,3 +91,19 @@ def test_mcp_serve_stays_up_after_garbage():
     out = io.StringIO()
     serve(":memory:-does-not-exist", inp, out)
     assert len(out.getvalue().splitlines()) == 4
+
+
+def test_cli_search_json_and_version(tmp_path, capsys):
+    dbp = tmp_path / "x.sqlite"
+    db = connect(dbp)
+    ingest_lines(db, [rec("u1", "the zebra crossed")])
+    db.commit()
+    db.close()
+    assert cli.main(["--db", str(dbp), "search", "zebra", "--json"]) == 0
+    row = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert row["id"] == "u1:0" and "zebra" in row["snippet"]
+    try:
+        cli.main(["--version"])
+    except SystemExit as e:
+        assert e.code == 0
+    assert capsys.readouterr().out.startswith("jev_context ")

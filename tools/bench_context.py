@@ -40,7 +40,7 @@ def generate(root: Path, target_mb: int) -> int:
         proj = root / f"proj{sid_no % 12}"
         proj.mkdir(parents=True, exist_ok=True)
         lines = []
-        for i in range(rng.randrange(300, 900)):
+        for _ in range(rng.randrange(300, 900)):
             n += 1
             ts = f"2026-{rng.randrange(1, 11):02d}-{rng.randrange(1, 28):02d}T10:00:00Z"
             kind = rng.random()

@@ -3,10 +3,10 @@ import os
 import sqlite3
 
 import pytest
+from jev_router.redact import redact, redact_personal
 
 from jev_context.ingest import ingest_file
 from jev_context.store import connect
-from jev_router.redact import redact, redact_personal
 
 # Fake secrets are assembled from parts so secret scanners do not flag this file.
 STRIPE = "sk_" + "live_" + "a1B2c3D4e5F6g7H8i9J0"
