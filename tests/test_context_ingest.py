@@ -41,7 +41,7 @@ def test_ingest_keeps_and_drops():
     kinds = [(r["role"], r["kind"], r["tool"]) for r in db.execute("SELECT * FROM turn ORDER BY seq")]
     assert kinds == [("user", "text", None), ("assistant", "text", None), ("assistant", "tool_use", "Bash"),
                      ("user", "tool_result", None)]
-    assert stats["skipped"] == 3 and stats["added"] == 4
+    assert stats["skipped"] + stats["malformed"] == 3 and stats["malformed"] == 1 and stats["added"] == 4
     assert "private musings" not in dump(db)
 
 

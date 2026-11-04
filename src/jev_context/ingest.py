@@ -9,6 +9,7 @@ Everything is redacted with the same patterns the router uses before it is store
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections.abc import Iterable, Iterator
 from datetime import datetime
@@ -21,6 +22,20 @@ from .store import NewTurn, add_turn, upsert_session
 # Bodies longer than this are clipped to head + tail in `turn.text`; the full redacted body goes to `blob`.
 CLIP_CHARS = 8_000
 _KEEP_EACH_END = CLIP_CHARS // 2
+
+
+_PROJECT_USER = re.compile(r"^([A-Za-z]--Users-)[^-]+(?=-|$)")
+
+
+def project_label(root: Path, path: Path) -> str:
+    """Project = the folder directly under the transcripts root (sub-agent files sit deeper); the Windows
+    user name that Claude Code folds into the folder name is masked."""
+    try:
+        parts = path.relative_to(root).parts
+        name = parts[0] if len(parts) > 1 else path.parent.name
+    except ValueError:
+        name = path.parent.name
+    return _PROJECT_USER.sub(lambda m: m.group(1) + "USER", name)
 
 
 def _ts(rec: dict) -> float | None:
@@ -51,7 +66,8 @@ def _flatten(content) -> str:
 
 def _blocks(rec: dict) -> Iterator[tuple[str, str, str | None]]:
     """(kind, raw text, tool name) per kept block of one user/assistant record."""
-    content = rec.get("message", {}).get("content")
+    msg = rec.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
     if isinstance(content, str):
         yield "text", content, None
         return
@@ -76,20 +92,27 @@ def clip(text: str) -> str:
 
 
 def ingest_lines(db: sqlite3.Connection, lines: Iterable[str], project: str = "") -> dict[str, int]:
-    stats = {"records": 0, "added": 0, "duplicates": 0, "skipped": 0, "redactions": 0}
+    stats = {"records": 0, "added": 0, "duplicates": 0, "skipped": 0, "malformed": 0, "redactions": 0}
     for line_no, line in enumerate(lines):
+        if not line.strip():
+            continue
         try:
             rec = json.loads(line)
-        except json.JSONDecodeError:
-            stats["skipped"] += 1
+        except (json.JSONDecodeError, RecursionError):
+            stats["malformed"] += 1  # truncated or garbled line (e.g. a transcript cut off mid-write)
+            continue
+        if not isinstance(rec, dict):
+            stats["malformed"] += 1
             continue
         role = rec.get("type")
         sid, uuid = rec.get("sessionId"), rec.get("uuid")
-        if role not in ("user", "assistant") or not sid or not uuid:
+        if role not in ("user", "assistant") or not isinstance(sid, str) or not isinstance(uuid, str) or not sid or not uuid:
             stats["skipped"] += 1
             continue
         stats["records"] += 1
-        model = rec.get("message", {}).get("model") if role == "assistant" else None
+        msg = rec.get("message")
+        model = msg.get("model") if role == "assistant" and isinstance(msg, dict) else None
+
         upsert_session(db, sid, project, _ts(rec), model)
         for idx, (kind, raw, tool) in enumerate(_blocks(rec)):
             if not raw.strip():
@@ -104,14 +127,14 @@ def ingest_lines(db: sqlite3.Connection, lines: Iterable[str], project: str = ""
     return stats
 
 
-def ingest_file(db: sqlite3.Connection, path: Path) -> dict[str, int]:
+def ingest_file(db: sqlite3.Connection, path: Path, project: str | None = None) -> dict[str, int]:
     """Ingest one transcript; a file with the same size AND modification time as last run is skipped."""
     st = path.stat()
     row = db.execute("SELECT size, mtime_ns FROM file_state WHERE path=?", (str(path),)).fetchone()
     if row and row["size"] == st.st_size and row["mtime_ns"] == st.st_mtime_ns:
-        return {"records": 0, "added": 0, "duplicates": 0, "skipped": 0, "redactions": 0, "unchanged": 1}
+        return {"records": 0, "added": 0, "duplicates": 0, "skipped": 0, "malformed": 0, "redactions": 0, "unchanged": 1}
     with path.open(encoding="utf-8", errors="replace") as f:
-        stats = ingest_lines(db, f, project=path.parent.name)
+        stats = ingest_lines(db, f, project=project if project is not None else path.parent.name)
     db.execute("INSERT INTO file_state(path, size, mtime_ns) VALUES (?,?,?) "
                "ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime_ns=excluded.mtime_ns",
                (str(path), st.st_size, st.st_mtime_ns))
@@ -120,10 +143,17 @@ def ingest_file(db: sqlite3.Connection, path: Path) -> dict[str, int]:
 
 
 def ingest_tree(db: sqlite3.Connection, root: Path) -> dict[str, int]:
+    """Ingest every transcript under `root`. A file that cannot be read (locked, deleted meanwhile) is
+    counted under "errors" and the rest still go in."""
     total: dict[str, int] = {}
     files = sorted(root.rglob("*.jsonl"))
     for path in files:
-        for k, v in ingest_file(db, path).items():
+        try:
+            stats = ingest_file(db, path, project_label(root, path))
+        except OSError:
+            db.rollback()
+            stats = {"errors": 1}
+        for k, v in stats.items():
             total[k] = total.get(k, 0) + v
     total["files"] = len(files)
     return total

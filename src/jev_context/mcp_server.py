@@ -119,7 +119,7 @@ def call_tool(db: sqlite3.Connection | None, name: str, args: dict) -> str:
         if not fts_query(query):
             return "No searchable words in the query (letters and digits only; end a word with * for a prefix)."
         days = args.get("days")
-        since = time.time() - float(days) * 86400 if isinstance(days, (int, float)) and days > 0 else None
+        since = time.time() - min(float(days), 36_500) * 86400 if isinstance(days, (int, float)) and not isinstance(days, bool) and days > 0 else None
         limit = _clamp(args.get("limit"), 1, MAX_LIMIT, 5)
         flt = {k: args[k] for k in ('role', 'kind', 'tool') if isinstance(args.get(k), str)}
         hits = search(db, query, limit, min(DEFAULT_BUDGET_TOKENS, MAX_BUDGET), since, **flt)
@@ -157,17 +157,23 @@ def handle(db: sqlite3.Connection | None, msg: dict) -> dict | None:
     if method == "tools/list":
         return ok({"tools": TOOLS})
     if method == "tools/call":
-        params = msg.get("params") or {}
+        params = msg.get("params")
+        params = params if isinstance(params, dict) else {}
+        args = params.get("arguments")
         try:
-            text = call_tool(db, params.get("name", ""), params.get("arguments") or {})
+            text = call_tool(db, params.get("name", ""), args if isinstance(args, dict) else {})
             return ok({"content": [{"type": "text", "text": text}]})
-        except (ValueError, sqlite3.Error) as e:
+        except (ValueError, OverflowError, OSError, sqlite3.Error) as e:
             return ok({"content": [{"type": "text", "text": f"error: {e}"}], "isError": True})
     return err(-32601, f"method not found: {method}")
 
 
 def serve(db_path: Path | str | None = None, stdin=None, stdout=None) -> None:
     db_path = default_db() if db_path is None else db_path
+    if stdin is None and stdout is None:  # JSON-RPC is UTF-8; a Windows console default (cp1252) would garble queries
+        for stream in (sys.stdin, sys.stdout):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8")
     stdin, stdout = stdin or sys.stdin, stdout or sys.stdout
     for line in stdin:
         line = line.strip()

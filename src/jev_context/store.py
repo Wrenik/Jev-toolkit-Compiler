@@ -73,8 +73,10 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     path = default_db() if path is None else path
     if str(path) != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(path)
+    db = sqlite3.connect(path, timeout=30)  # wait for another writer (CLI ingest vs the server) instead of failing
     db.row_factory = sqlite3.Row
+    if str(path) != ":memory:":
+        db.execute("PRAGMA journal_mode=WAL")  # the MCP server reads while an ingest writes
     db.executescript(SCHEMA)
     if not any(r[1] == "mtime_ns" for r in db.execute("PRAGMA table_info(file_state)")):
         db.execute("ALTER TABLE file_state ADD COLUMN mtime_ns INTEGER")  # logs made before this column existed

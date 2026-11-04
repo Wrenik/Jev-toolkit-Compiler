@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -58,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("id")
     p.add_argument("--around", type=int, default=0)
     a = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # a Windows console is not UTF-8; never crash on a character it lacks
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     a.db = a.db or str(default_db())
     if a.cmd == "serve":
         from .server import DEFAULT_PORT, serve
