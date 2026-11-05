@@ -64,18 +64,28 @@ async function ensureServer($: any): Promise<void> {
   if (h?.ok && h.has_context) return
   isStarting = true
   try {
-    if (h?.ok) {
-      try {
-        await fetchJson($, '/shutdown', { method: 'POST', body: '{}' }, 1500)
-      } catch {
-        // Already going down.
+    // Two attempts: jev-router starts its own server at the same moment. The first context server then loses the
+    // port race and exits within seconds; the second attempt sees the router-only server, asks it to exit and
+    // takes its place. A server that keeps running (the normal case) ends the loop on its first pass.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = attempt === 0 ? h : await health($)
+      if (current?.ok && current.has_context) return
+      if (current?.ok) {
+        try {
+          await fetchJson($, '/shutdown', { method: 'POST', body: '{}' }, 1500)
+        } catch {
+          // Already going down.
+        }
+        await $.clock.sleep(500)
       }
-      await $.clock.sleep(500)
-    }
-    const { python, cwd } = await launchOf($)
-    const child = $.process.spawn({ argv: [python, '-m', 'jev_context', 'serve'], ...(cwd ? { cwd } : {}) })
-    for await (const piece of child) {
-      if (piece && typeof piece.text === 'string') $.ui.log(`jev-context server: ${piece.text.trim()}`, { to: 'debug' })
+      const { python, cwd } = await launchOf($)
+      const startedAt = await $.clock.now()
+      const child = $.process.spawn({ argv: [python, '-m', 'jev_context', 'serve'], ...(cwd ? { cwd } : {}) })
+      for await (const piece of child) {
+        if (piece && typeof piece.text === 'string') $.ui.log(`jev-context server: ${piece.text.trim()}`, { to: 'debug' })
+      }
+      if ((await $.clock.now()) - startedAt > 10_000) return
+      await $.clock.sleep(1500)
     }
   } catch (err) {
     $.ui.log(`jev-context: could not start the server (are jev-toolkit-compiler and jev-toolkit-usage installed for this Python?): ${String((err as Error)?.message ?? err)}`)
