@@ -2,7 +2,7 @@
   "name": "jev-toolkit-compiler",
   "description": "Claude Code mod built on a judgement model (currently TypeSafe Jev): compact/clear advice and a searchable log of past sessions.",
   "owner": {
-    "name": "AUTHOR_NAME_TODO"
+    "name": "Eric Ährlund"
   },
   "plugins": [
     {
