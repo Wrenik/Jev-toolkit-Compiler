@@ -113,7 +113,7 @@ async function autoIngest($: any, why: string): Promise<void> {
     }
     lastIngestAt = now
     const r = await fetchJson($, '/ingest', { method: 'POST', body: JSON.stringify({ auto: true }) }, 3000)
-    lastIngest = `${why}: ${r.ok ? (r.started ? 'started' : r.reason) : r.error}`
+    lastIngest = `${why}: ${r.ok ? (r.started ? 'started' : (r.reason ?? 'nothing to do')) : (r.error ?? 'server without ingest endpoint (restarting)')}`
   } catch (err) {
     lastIngest = `${why}: failed (${String((err as Error)?.message ?? err)})`
     $.ui.log(`jev-context: automatic ingest ${lastIngest}`, { to: 'debug' })
