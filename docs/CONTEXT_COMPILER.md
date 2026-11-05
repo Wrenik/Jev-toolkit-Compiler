@@ -99,10 +99,10 @@ Note the "wait" option has a time dimension: if the cache is warm and the user i
 | items that must survive verbatim | **Jev** scores candidates; code extracts them |
 
 Jev's typed questions (one `state` per question: last user prompts + task heading; never raw secrets — run the router's redaction first):
-1. `Noul`: "Will the user most likely continue this same task within the next hour?" → P_continue. Expected n comes from a small table keyed by this probability and the Score below (e.g. P>0.8 and task=ongoing ⇒ n≈10).
+1. `YesNo`: "Will the user most likely continue this same task within the next hour?" → P_continue. Expected n comes from a small table keyed by this probability and the Score below (e.g. P>0.8 and task=ongoing ⇒ n≈10).
 2. `Score` 1–5: "How much of the earlier conversation is still needed for the next steps?" → load-bearing level.
 3. `Choice` ["task finished", "paused mid-task", "topic switch"]: closure state. Finished/switch ⇒ option C (clear) becomes attractive.
-4. For each candidate item (decision, constraint, file path, TODO, error that was resolved): `Noul` "must this be kept verbatim in a summary?" Batched, ≤32k tokens per question.
+4. For each candidate item (decision, constraint, file path, TODO, error that was resolved): `YesNo` "must this be kept verbatim in a summary?" Batched, ≤32k tokens per question.
 
 Everything Jev returns is advisory input to the formula; fail-open (judge down ⇒ don't compact, show nothing). Decision output: one of `keep`, `compact_now`, `compact_before_ttl(minutes)`, `clear_with_seed`, with the numbers shown.
 

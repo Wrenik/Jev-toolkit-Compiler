@@ -62,7 +62,7 @@ python -m jev_context search "cache design" --project NAME --since 2026-10-01 --
 python -m jev_context forget --session ID --yes   # delete one session's rows (or --project / --all)
 ```
 
-What a session looks like (made-up transcript; the key and address are inert examples):
+What a session looks like (made-up transcript; the key and address are inert examples; hits are wrapped in « », and times are shown in your local time zone):
 
 ```
 $ python -m jev_context ingest --root ./demo
@@ -71,11 +71,11 @@ log now: 1 sessions, 3 turns, 2 redactions, database 0.0 MB at ~/.jev-toolkit/va
 
 $ python -m jev_context search "invoices index"
 a1:0  2026-10-02 11:00  assistant/text
-    The [invoices] query has no [index] on customer_id; add one and the export drops from 90 s to 2 s.
+    The «invoices» query has no «index» on customer_id; add one and the export drops from 90 s to 2 s.
 
 $ python -m jev_context search "mail staging"
 u2:0  2026-10-02 11:05  user/text
-    Use key [REDACTED:anthropic_key] for the [staging] run, [mail] me at [REDACTED:email]
+    Use key [REDACTED:anthropic_key] for the «staging» run, mail me at [REDACTED:email]
 ```
 
 Hits are marked with `[brackets]`. `search --json` prints one JSON object per line for scripts; `get ID --around 2` shows a turn with its neighbours. `skipped` counts records that are not conversation (bookkeeping), `malformed` lines that are not valid JSON objects (for example a transcript cut off mid-write), `errors` files that could not be read.
