@@ -10,12 +10,13 @@ a matching Host header are required on every request.
 from __future__ import annotations
 
 import json
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
 
 from jev_core import Judge, default_judge
 from jev_core.config import var_path
+from jev_core.localserver import GuardedServer
 from jev_router import server as router_server
 
 from .advisor import advise
@@ -150,7 +151,7 @@ def serve(port: int = DEFAULT_PORT, var_dir: str | Path | None = None, transcrip
         var / "log" / "jev-context.sqlite",
         transcripts or Path.home() / ".claude" / "projects",
     )
-    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    server = GuardedServer(("127.0.0.1", port), handler)
     handler.ingestor.request(force=True)  # type: ignore[attr-defined]  # once at start, in the background
     print(
         f"jev_context+router listening on 127.0.0.1:{port} (judge={judge.name}, model={judge.model}, "
