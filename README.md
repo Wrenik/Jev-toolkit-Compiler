@@ -5,8 +5,6 @@
 ![status](https://img.shields.io/badge/status-alpha-orange)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-(The badges start working once the repository is public.)
-
 A context log and compact/clear advisor for **Claude Code**, built on a judgement model ([TypeSafe Jev](https://docs.typesafe.ai)). It is part of a family of small Jev tools; the base layer (judge interface, settings, the router mod) is [Jev-toolkit-usage](https://github.com/Wrenik/Jev-toolkit-usage), which this repository depends on.
 
 It does three things, all on a Claude **subscription** (no API tokens):
@@ -39,10 +37,9 @@ Want all six tools? Use [the install script](https://github.com/Wrenik/Jev-toolk
 Requires Python 3.11+ and `python` on your PATH (use `python3` on Linux/macOS; see the mod's `python` option or `JEV_PYTHON`).
 
 ```bash
-pip install "git+https://github.com/Wrenik/Jev-toolkit-usage.git" "git+https://github.com/Wrenik/Jev-toolkit-Compiler.git"   # once public
-# from local clones, before anything is public (the second line must use --no-deps: the dependency
-# above points at a repository that is not public yet, so pip would try to clone it and fail):
-pip install -e ../Jev-toolkit-usage && pip install --no-deps -e ".[dev]"
+pip install "git+https://github.com/Wrenik/Jev-toolkit-usage.git" "git+https://github.com/Wrenik/Jev-toolkit-Compiler.git"
+# development, from local clones:
+pip install -e ../Jev-toolkit-usage && pip install -e ".[dev]"
 ```
 
 Use a fresh virtual environment (`python -m venv .venv`). `python -m jev_context --version` checks the install.
@@ -138,7 +135,7 @@ Several tools already index Claude Code transcripts or add memory: [claude-mem](
 | [Jev-toolkit-FactCheck](https://github.com/Wrenik/Jev-toolkit-FactCheck) | fact checker with hover evidence | usage (Scanner optional) |
 | [Jev-toolkit-Sources](https://github.com/Wrenik/Jev-toolkit-Sources) | source restriction (allowlist policy) | usage, FactCheck |
 
-All six on one machine: [docs/INSTALL_ALL.md](https://github.com/Wrenik/Jev-toolkit-usage/blob/main/docs/INSTALL_ALL.md) (a script does it). The links work once the repositories are public.
+All six on one machine: [docs/INSTALL_ALL.md](https://github.com/Wrenik/Jev-toolkit-usage/blob/main/docs/INSTALL_ALL.md) (a script does it). The other tools (Scanner, Monitor, FactCheck, Sources) are published one by one; their links work as each goes public.
 
 ## Contributing, security, license
 
