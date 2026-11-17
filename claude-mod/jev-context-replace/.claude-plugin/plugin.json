@@ -1,0 +1,20 @@
+{
+  "name": "jev-context-replace",
+  "version": "0.1.0",
+  "description": "Replaces Claude Code's model-written compaction summary with a local outline plus excerpts from the jev-context log, so the model keeps only what the task needs. One click to turn on or off. Off by default.",
+  "author": {
+    "name": "Eric Ährlund"
+  },
+  "license": "MIT",
+  "userConfig": {
+    "python": {
+      "type": "string",
+      "title": "Python for the server",
+      "description": "Same as the jev-context mod: the Python that has jev-toolkit-compiler and jev-toolkit-usage installed. Empty: JEV_PYTHON, else `python` (Windows) or `python3` on PATH.",
+      "default": ""
+    }
+  },
+  "homepage": "https://github.com/Wrenik/Jev-toolkit-Compiler",
+  "repository": "https://github.com/Wrenik/Jev-toolkit-Compiler",
+  "types": "./types/index.d.ts"
+}

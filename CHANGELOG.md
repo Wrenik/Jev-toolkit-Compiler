@@ -6,6 +6,11 @@ change behaviour; they are listed here.
 
 ## [Unreleased]
 
+- `jev-context-replace` mod (experimental, off by default): answers `session.compact` with a local outline, log excerpts and the newest turns; tail budget cuts old tool output; Turn on/off button row and `/jevreplace`.
+- `jev_context.window.History`: the same idea for API users (no Claude Code, no model call).
+- `python -m jev_context install`: guided setup (Claude Code and/or API, with or without Jev; `--dry-run`, `--uninstall`).
+- Marketplace lists both mods.
+
 ### Added
 - `docs/PRIOR_ART.md`: comparison with existing session-memory tools, compaction hooks, FTS5 and MCP practice.
 - `jev_context stats` (per project, role/kind, top tools); `search --since YYYY-MM-DD` and `--offset`.

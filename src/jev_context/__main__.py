@@ -74,6 +74,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--project")
     p.add_argument("--all", action="store_true", dest="everything")
     p.add_argument("--yes", action="store_true", help="required; without it only the count is shown")
+    p = sub.add_parser("install", help="guided setup: Claude Code mods and/or API use, with or without Jev")
+    p.add_argument("--where", choices=["claude-code", "api", "both"])
+    p.add_argument("--jev", choices=["yes", "no"])
+    p.add_argument("--yes", action="store_true", help="no questions: take the defaults and the flags given")
+    p.add_argument("--dry-run", action="store_true", help="show what would be done; change nothing")
+    p.add_argument("--uninstall", action="store_true", help="remove the mods again")
+    p.add_argument(
+        "--source", help="where the mods come from: a folder or GitHub owner/repo (default: this checkout, else GitHub)"
+    )
     p = sub.add_parser("get", help="show one turn in full, with neighbours")
     p.add_argument("id")
     p.add_argument("--around", type=int, default=0)
@@ -177,6 +186,10 @@ def main(argv: list[str] | None = None) -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="replace")
     a.db = a.db or str(default_db())
+    if a.cmd == "install":
+        from .install import install
+
+        return install(a.where, a.jev, a.yes, a.dry_run, a.uninstall, a.source)
     if a.cmd == "serve":
         from .server import DEFAULT_PORT, serve
 

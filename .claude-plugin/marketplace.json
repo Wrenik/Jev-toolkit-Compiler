@@ -1,6 +1,6 @@
 {
   "name": "jev-toolkit-compiler",
-  "description": "Claude Code mod built on a judgement model (currently TypeSafe Jev): compact/clear advice and a searchable log of past sessions.",
+  "description": "Claude Code mods built on a judgement model (currently TypeSafe Jev, optional): compact/clear advice, a searchable log of past sessions, and an experimental replacement of the compaction summary.",
   "owner": {
     "name": "Eric Ährlund"
   },
@@ -9,6 +9,12 @@
       "name": "jev-context",
       "source": "./claude-mod/jev-context",
       "description": "Advises when a big context is worth compacting or clearing, and searches a log of past sessions. Advice only; shares one judge request with jev-router when both are installed. Needs the jev-toolkit-compiler and jev-toolkit-usage Python packages installed.",
+      "version": "0.1.0"
+    },
+    {
+      "name": "jev-context-replace",
+      "source": "./claude-mod/jev-context-replace",
+      "description": "Instead of a model-written compaction summary, keeps a local outline and fetches details from the jev-context log. One click to turn on or off. Off by default. Needs jev-context.",
       "version": "0.1.0"
     }
   ]

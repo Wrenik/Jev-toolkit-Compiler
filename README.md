@@ -13,6 +13,10 @@ It does three things, all on a Claude **subscription** (no API tokens):
 2. **Search**: a command line and a read-only MCP server so you (or the agent, on purpose) can look things up later. Results are framed as quoted data, never as instructions.
 3. **Advise**: when the context is big, ask Jev whether the work will continue and how much of the context is still needed, then a cost model says keep, compact now, or clear. Advice only: it never runs `/compact` or `/clear`.
 
+## New: replace the compaction summary (experimental)
+
+Instead of a model-written summary, keep the whole conversation in the local log and give the model an outline plus on-demand search. Off by default, one button to turn on or off, works with or without Jev, and there is a plain Python version for API users. Why, measurements and limits: [docs/CONTEXT_REPLACE.md](docs/CONTEXT_REPLACE.md). Guided install: `python -m jev_context install`.
+
 ## Status and limits
 
 **Built and tested offline; the mod is not verified in the Claude Code desktop app.** What is measured and what is assumed:
