@@ -64,6 +64,22 @@ What this says, and does not say:
   the model answers better or worse afterwards. A small retrieval check (4 dropped long prompts, probed with words that the
   outline does not show) found all 4, which is far too few to claim a rate.
 
+### A/B on a scripted session (2026-11-17, one run each)
+
+A real Claude Code session of 7 turns (30 messages: it read six files and reported constants), forked twice. One fork was
+compacted by Claude Code, the other by this mod (30 messages became 10, the summariser did not run). Then both were asked
+six questions about the earlier files, with file reading switched off.
+
+| | Claude Code's summary | This mod |
+|---|---|---|
+| Extra cost of the compaction itself | $0.036 | $0 (summariser skipped; the hook took 2.4 s) |
+| Correct answers | 6 of 6 | 6 of 6 |
+
+This is one run on a small session, so the cost gap in the following question turn ($0.19 against $0.10) is mostly
+prompt-cache noise and **must not be read as a saving**. What it does show is that the hook works end to end in a real
+session, that skipping the summariser removes its cost, and that nothing was lost on a small session. It says nothing about
+a long working day.
+
 ## Turning it on and off
 
 * A row above the prompt shows `Jev context: off` or `ON` with a **Turn on / Turn off** button.
