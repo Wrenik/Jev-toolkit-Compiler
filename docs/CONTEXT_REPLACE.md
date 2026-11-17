@@ -56,7 +56,7 @@ What this says, and does not say:
 
 * The outline is small and constant. **The tail is the cost**, and it is dominated by old tool output. Without the
   tail budget the worst cases saved nothing; with it they dropped by three quarters.
-* **Compared with the engine's own compaction the result is not smaller.** Seven real compaction summaries in the
+* **Compared with the engine's own compaction the result is not smaller (confirmed by the long test below: 48.5 k against 48.6 k tokens).** Seven real compaction summaries in the
   author's transcripts were 2.5 k to 17 k characters, because the engine keeps *only* the summary. This mod keeps the
   last two prompts word for word, so it often ends up larger right after compaction. What it saves instead is the
   summarising call, and it keeps every detail retrievable instead of lossy.
@@ -93,12 +93,39 @@ and last files, with file reading switched off.
 | Compaction itself | $0.054 | about $0.006 |
 | The 12-question turn | $0.096 | $0.118 |
 | Compaction + question, total | $0.150 | $0.124 |
-| Context after compaction (tokens, incl. system prompt) | 41.9 k | 49.9 k |
 
 Read this carefully: one run, a session whose history was only about 44 k characters of text, and a recall task that
 is easy for both. The mod was cheaper in total here because the summariser did not run, but its context after compaction
-was larger (the lookups and the outline are not free). The session was too short for the replacement to shrink anything
+is not shown here: the token figures I first printed were sums over several model calls, so they were not context sizes (the long test below measures it properly). The session was too short for the replacement to shrink anything
 that matters; the result says "no loss, no big gain" and nothing about hours-long sessions.
+
+### A/B on a long session (2026-11-17, one run each)
+
+33 turns, 141 messages, 2.66 M characters of tool output: the model read 33 whole files (12-38 k characters each). The
+uncompacted context was **320 k tokens**. Forked twice, compacted by Claude Code and by this mod (141 messages became 8,
+hook 0.3 s). Then 16 questions: the line count of 8 of the files (the answer is in the model's own earlier reply) and the
+exact text of one line of 8 other files (only in the tool output), with file reading switched off.
+
+| | Claude Code's summary | This mod |
+|---|---|---|
+| Context after compaction, one-call turn (tokens, incl. system prompt) | 48.5 k | 48.6 k |
+| Line counts right | 8 of 8 | 8 of 8 |
+| Exact line text right | 0 of 8 | 0 of 8 |
+| Compaction itself | $0.059 | $0 |
+| The 16-question turn | $0.139 (4 model calls) | $0.219 (13 model calls) |
+
+What it says:
+
+* **Both compactions shrink 320 k to about 48 k, and the two results are equal in size.** Most of those 48 k is Claude
+  Code's own system prompt and tools. This mod does not make the context smaller than the engine's summary does.
+* **Exact text from a big tool result was lost in both.** The log keeps long tool output cut in the middle and `get_turn`
+  returns at most 6 000 characters, so a line in the middle of a 30 k-character file cannot be retrieved. In real work the
+  model would simply read the file again (which this test forbade), so this is a limit rather than a failure, but the log is
+  **not** a faithful archive of big tool output.
+* **The mod tried hard to find it anyway.** It made 13 model calls and spent $0.08 more on the question turn than the
+  summary arm, which made 4 calls and gave up sooner. Net after compaction + question: $0.199 (summary) against $0.219 (mod).
+* **So at this size there is no saving**, only the summariser call that is skipped, and that is eaten by the lookups when the
+  question needs something the log cannot give.
 
 ## Turning it on and off
 
