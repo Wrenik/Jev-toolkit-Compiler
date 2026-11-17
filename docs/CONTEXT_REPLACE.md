@@ -80,6 +80,26 @@ prompt-cache noise and **must not be read as a saving**. What it does show is th
 session, that skipping the summariser removes its cost, and that nothing was lost on a small session. It says nothing about
 a long working day.
 
+### A/B on a longer scripted session (2026-11-17, one run each)
+
+20 turns, 82 messages: the model read 20 different source files and reported two constants from each. Forked twice, one
+fork compacted by Claude Code and one by this mod (82 messages became 8; the hook took 1.4 s, 0 excerpts, so everything
+came from the outline and the model's own `search_log` calls). Then 12 questions about constants from the first, middle
+and last files, with file reading switched off.
+
+| | Claude Code's summary | This mod |
+|---|---|---|
+| Correct answers | 12 of 12 | 12 of 12 |
+| Compaction itself | $0.054 | about $0.006 |
+| The 12-question turn | $0.096 | $0.118 |
+| Compaction + question, total | $0.150 | $0.124 |
+| Context after compaction (tokens, incl. system prompt) | 41.9 k | 49.9 k |
+
+Read this carefully: one run, a session whose history was only about 44 k characters of text, and a recall task that
+is easy for both. The mod was cheaper in total here because the summariser did not run, but its context after compaction
+was larger (the lookups and the outline are not free). The session was too short for the replacement to shrink anything
+that matters; the result says "no loss, no big gain" and nothing about hours-long sessions.
+
 ## Turning it on and off
 
 * A row above the prompt shows `Jev context: off` or `ON` with a **Turn on / Turn off** button.
