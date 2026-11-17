@@ -123,7 +123,7 @@ test('a huge tail loses its oldest tool output first, never prompts, answers or 
   const old = r.messages[2].toolResults![0]
   expect(old.tool_use_id).toBe('old')
   expect(old.text!.length).toBeLessThan(700)
-  expect(old.text).toContain('search_log')
+  expect(old.text).toContain('get_turn')
   const fresh = r.messages[6].toolResults![0]
   expect(fresh.text!.length).toBe(10000)
   expect(KEEP_RESULT_CHARS).toBeLessThan(TAIL_CHARS)

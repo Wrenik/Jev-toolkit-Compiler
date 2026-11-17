@@ -48,6 +48,9 @@ def warm(db: sqlite3.Connection, warm_days: float = WARM_DAYS, now: float | None
                 "INSERT INTO turn_fts(turn_fts, rowid, text, tool) VALUES ('delete', ?, ?, ?)",
                 (r["rowid"], r["text"], r["tool"]),
             )
+            db.execute(
+                "DELETE FROM chunk WHERE turn_rowid=?", (r["rowid"],)
+            )  # old output is fetched by id, not searched
             db.execute("UPDATE turn SET text=?, blob_sha=? WHERE rowid=?", (stub, sha, r["rowid"]))
             db.execute("INSERT INTO turn_fts(rowid, text, tool) VALUES (?,?,?)", (r["rowid"], stub, r["tool"]))
             changed += 1

@@ -17,11 +17,11 @@ from pathlib import Path
 
 from jev_core.redact import redact_personal as redact
 
-from .store import NewTurn, add_turn, upsert_session
+from .store import HEAD_TAIL, NewTurn, add_turn, reindex_chunks, upsert_session
 
 # Bodies longer than this are clipped to head + tail in `turn.text`; the full redacted body goes to `blob`.
-CLIP_CHARS = 8_000
-_KEEP_EACH_END = CLIP_CHARS // 2
+CLIP_CHARS = 2 * HEAD_TAIL
+_KEEP_EACH_END = HEAD_TAIL
 
 
 _PROJECT_USER = re.compile(r"^([A-Za-z]--Users-)[^-]+(?=-|$)")
@@ -180,4 +180,5 @@ def ingest_tree(db: sqlite3.Connection, root: Path) -> dict[str, int]:
         for k, v in stats.items():
             total[k] = total.get(k, 0) + v
     total["files"] = len(files)
+    total["chunked"] = reindex_chunks(db, 200)  # older long turns get their middle indexed, a few hundred per run
     return total

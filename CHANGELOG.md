@@ -10,6 +10,7 @@ change behaviour; they are listed here.
 - `jev_context.window.History`: the same idea for API users (no Claude Code, no model call).
 - `python -m jev_context install`: guided setup (Claude Code and/or API, with or without Jev; `--dry-run`, `--uninstall`).
 - Marketplace lists both mods.
+- Log: the middle of long tool results is now indexed (`chunk` table, filled on ingest; old logs on the next ingest), search hits inside a long result carry the character offset, and `get_turn` pages (`offset`, `max_chars`), searches inside a turn (`match`) and reads line ranges (`lines`).
 
 ### Added
 - `docs/PRIOR_ART.md`: comparison with existing session-memory tools, compaction hooks, FTS5 and MCP practice.

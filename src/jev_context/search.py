@@ -35,6 +35,7 @@ class Hit:
     tool: str | None
     snippet: str
     score: float  # lower is better (BM25 as reported by SQLite, possibly recency-adjusted)
+    offset: int | None = None  # set when the match is inside a long body: where, for get_turn(offset=...)
 
 
 def fts_query(text: str) -> str:
@@ -82,12 +83,15 @@ def count_hits(
     q = fts_query(query)
     if not q:
         return 0
-    sql = (
-        "SELECT count(*) FROM turn_fts JOIN turn t ON t.rowid = turn_fts.rowid "
-        "JOIN session s ON s.id = t.session_id WHERE turn_fts MATCH ?"
-    )
     extra, more = _filters(since, project, role, kind, tool)
-    return db.execute(sql + extra, [q, *more]).fetchone()[0]
+    sql = (
+        "SELECT count(*) FROM ("
+        "SELECT t.rowid FROM turn_fts JOIN turn t ON t.rowid = turn_fts.rowid "
+        "JOIN session s ON s.id = t.session_id WHERE turn_fts MATCH ?" + extra + " UNION "
+        "SELECT t.rowid FROM chunk_fts JOIN chunk c ON c.rowid = chunk_fts.rowid JOIN turn t ON t.rowid = c.turn_rowid "
+        "JOIN session s ON s.id = t.session_id WHERE chunk_fts MATCH ?" + extra + ")"
+    )
+    return db.execute(sql, [q, *more, q, *more]).fetchone()[0]
 
 
 def search(
@@ -111,20 +115,24 @@ def search(
     q = fts_query(query)
     if not q:
         return []
+    extra, more = _filters(since, project, role, kind, tool)
+    offset = max(0, min(int(offset), MAX_OFFSET))
+    want = (limit + offset) * 5 if half_life_days else limit + offset
     sql = (
         f"SELECT t.id, t.session_id, t.ts, t.role, t.kind, t.tool, bm25(turn_fts, {BM25_WEIGHTS[0]}, {BM25_WEIGHTS[1]}) AS score, "
-        f"snippet(turn_fts, 0, '{HIT_OPEN}', '{HIT_CLOSE}', ' ... ', 32) AS snip "
+        f"snippet(turn_fts, 0, '{HIT_OPEN}', '{HIT_CLOSE}', ' ... ', 32) AS snip, NULL AS off "
         "FROM turn_fts JOIN turn t ON t.rowid = turn_fts.rowid "
-        "JOIN session s ON s.id = t.session_id WHERE turn_fts MATCH ?"
+        "JOIN session s ON s.id = t.session_id WHERE turn_fts MATCH ?" + extra + " ORDER BY score LIMIT ?"
     )
-    extra, more = _filters(since, project, role, kind, tool)
-    sql += extra
-    args: list = [q, *more]
-    # Fetch more than `limit` when decay may reorder results.
-    offset = max(0, min(int(offset), MAX_OFFSET))
-    sql += " ORDER BY score LIMIT ? OFFSET ?"
-    args += [(limit + offset) * 5 if half_life_days else limit, 0 if half_life_days else offset]
-    rows = db.execute(sql, args).fetchall()
+    rows = list(db.execute(sql, [q, *more, want]).fetchall())
+    # The middle of long tool output is only in the chunk index.
+    sql = (
+        f"SELECT t.id, t.session_id, t.ts, t.role, t.kind, t.tool, bm25(chunk_fts) AS score, "
+        f"snippet(chunk_fts, 0, '{HIT_OPEN}', '{HIT_CLOSE}', ' ... ', 32) AS snip, c.off AS off "
+        "FROM chunk_fts JOIN chunk c ON c.rowid = chunk_fts.rowid JOIN turn t ON t.rowid = c.turn_rowid "
+        "JOIN session s ON s.id = t.session_id WHERE chunk_fts MATCH ?" + extra + " ORDER BY score LIMIT ?"
+    )
+    rows += db.execute(sql, [q, *more, want]).fetchall()
 
     now = time.time() if now is None else now
     hits = []
@@ -134,13 +142,30 @@ def search(
             age_days = max(0.0, (now - r["ts"]) / 86400)
             score *= 0.5 ** (age_days / half_life_days)
         hits.append(
-            Hit(r["id"], r["session_id"], r["ts"], r["role"], r["kind"], r["tool"], r["snip"][:SNIPPET_CHARS], score)
+            Hit(
+                r["id"],
+                r["session_id"],
+                r["ts"],
+                r["role"],
+                r["kind"],
+                r["tool"],
+                r["snip"][:SNIPPET_CHARS],
+                score,
+                r["off"],
+            )
         )
     hits.sort(key=lambda h: h.score)
+    seen: set[str] = set()
+    unique = []
+    for h in hits:  # one line per turn: its best match, wherever in the body it is
+        if h.id not in seen:
+            seen.add(h.id)
+            unique.append(h)
+    hits = unique
 
     out: list[Hit] = []
     used = 0
-    for h in hits[offset : offset + limit] if half_life_days else hits[:limit]:
+    for h in hits[offset : offset + limit]:
         cost = (len(h.snippet) + 80) // CHARS_PER_TOKEN  # snippet plus the id/metadata line
         if out and used + cost > budget_tokens:
             break
@@ -171,8 +196,44 @@ def no_match_hint(
     return "No matches. All words must appear; try fewer or different words, or a prefix such as word*."
 
 
-def get_turn(db: sqlite3.Connection, turn_id: str, around: int = 0, max_chars: int = 6_000) -> list[dict]:
-    """The turn and up to `around` neighbours on each side, in order. Long bodies come from the blob, capped."""
+def _window(body: str, match: str, width: int = 700, most: int = 3) -> tuple[str, int]:
+    """Up to `most` stretches of `body` around case-insensitive occurrences of `match`; second value: how many occurrences."""
+    low, needle = body.lower(), match.lower()
+    spans: list[list[int]] = []
+    pos, found = 0, 0
+    while needle and (i := low.find(needle, pos)) != -1:
+        found += 1
+        lo, hi = max(0, i - width), min(len(body), i + len(needle) + width)
+        if spans and lo <= spans[-1][1]:
+            spans[-1][1] = hi
+        elif len(spans) < most:
+            spans.append([lo, hi])
+        pos = i + len(needle)
+    return "\n[... ...]\n".join(f"[chars {lo}-{hi}]\n{body[lo:hi]}" for lo, hi in spans), found
+
+
+def _line_range(body: str, lines: str, max_chars: int) -> str | None:
+    m = re.fullmatch(r"\s*(\d+)\s*(?:-\s*(\d+))?\s*", lines)
+    if not m:
+        return None
+    a = max(1, int(m.group(1)))
+    b = max(a, int(m.group(2) or a))
+    every = body.split("\n")
+    part = every[a - 1 : b]
+    return f"[lines {a}-{a + len(part) - 1} of {len(every)}]\n" + "\n".join(part)[:max_chars]
+
+
+def get_turn(
+    db: sqlite3.Connection,
+    turn_id: str,
+    around: int = 0,
+    max_chars: int = 6_000,
+    offset: int = 0,
+    match: str | None = None,
+    lines: str | None = None,
+) -> list[dict]:
+    """The turn and up to `around` neighbours on each side, in order. A long body is read from the blob in pieces:
+    `offset` pages through it, `match` returns the stretches around a word, `lines` ("100-140") a range of lines."""
     row = db.execute("SELECT session_id, seq FROM turn WHERE id=?", (turn_id,)).fetchone()
     if row is None:
         return []
@@ -182,11 +243,24 @@ def get_turn(db: sqlite3.Connection, turn_id: str, around: int = 0, max_chars: i
         (row["session_id"], row["seq"], around + 1, row["session_id"], row["seq"], around),
     ).fetchall()
     result = []
+    offset = max(0, int(offset))
     for r in rows:
-        body = (get_blob(db, r["blob_sha"]) if r["blob_sha"] and r["id"] == turn_id else None) or r[
+        mine = r["id"] == turn_id
+        body = (get_blob(db, r["blob_sha"]) if r["blob_sha"] and mine else None) or r[
             "text"
         ]  # blob gone: show the clipped text
-        truncated = len(body) > max_chars
+        note, text, nxt = "", body[:max_chars], None
+        if mine and lines:
+            got = _line_range(body, lines, max_chars)
+            text = got if got is not None else "lines must look like 100 or 100-140"
+        elif mine and match:
+            text, found = _window(body, match)
+            text = text or "no occurrence of that text in this turn"
+            note = f"{found} occurrence(s) of the text in {len(body):,} characters"
+        elif mine:
+            text = body[offset : offset + max_chars]
+            nxt = offset + max_chars if offset + max_chars < len(body) else None
+            note = f"characters {offset}-{offset + len(text)} of {len(body):,}" if (offset or nxt) else ""
         result.append(
             {
                 "id": r["id"],
@@ -194,8 +268,11 @@ def get_turn(db: sqlite3.Connection, turn_id: str, around: int = 0, max_chars: i
                 "role": r["role"],
                 "kind": r["kind"],
                 "tool": r["tool"],
-                "text": body[:max_chars],
-                "truncated": truncated,
+                "text": text,
+                "truncated": (nxt is not None) if mine else len(body) > max_chars,
+                "note": note,
+                "next_offset": nxt,
+                "total": len(body),
             }
         )
     return result

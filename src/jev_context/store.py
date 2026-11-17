@@ -17,6 +17,12 @@ except ImportError:  # pragma: no cover
 ZSTD_LEVEL = 6
 
 
+# `turn.text` keeps this much of each end of a long body; the part between is indexed in chunks instead.
+HEAD_TAIL = 4_000
+CHUNK_CHARS = 1_500
+MAX_CHUNKS = 400  # per turn: about 600 000 characters; the rest stays reachable by get_turn paging, just not searchable
+
+
 def default_db() -> Path:
     """``<JEV_HOME>/var/log/jev-context.sqlite`` (see ``jev_core.config``)."""
     from jev_core.config import var_path
@@ -49,6 +55,18 @@ CREATE TABLE IF NOT EXISTS file_state (path TEXT PRIMARY KEY, size INTEGER NOT N
 CREATE VIRTUAL TABLE IF NOT EXISTS turn_fts USING fts5(
     text, tool, content='turn', content_rowid='rowid', tokenize='unicode61'
 );
+-- The middle of a long body (the part `turn.text` clips away), in pieces, so a word anywhere in a big tool result is searchable.
+CREATE TABLE IF NOT EXISTS chunk (
+    rowid INTEGER PRIMARY KEY, turn_rowid INTEGER NOT NULL, off INTEGER NOT NULL, text TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chunk_turn ON chunk(turn_rowid);
+CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(text, content='chunk', content_rowid='rowid', tokenize='unicode61');
+CREATE TRIGGER IF NOT EXISTS chunk_ai AFTER INSERT ON chunk BEGIN
+    INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS chunk_ad AFTER DELETE ON chunk BEGIN
+    INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+END;
 CREATE TRIGGER IF NOT EXISTS turn_ai AFTER INSERT ON turn BEGIN
     INSERT INTO turn_fts(rowid, text, tool) VALUES (new.rowid, new.text, new.tool);
 END;
@@ -127,7 +145,48 @@ def add_turn(db: sqlite3.Connection, t: NewTurn) -> bool:
         db.execute(
             "INSERT OR IGNORE INTO blob(sha256, codec, size, data) VALUES (?,?,?,?)", (sha, codec, len(raw), data)
         )
+        add_chunks(db, cur.lastrowid, t.full_text or "")
     return bool(cur.rowcount)
+
+
+def chunk_pieces(full: str) -> list[tuple[int, str]]:
+    """(offset, text) pieces of the middle of a long body, cut at a line break where there is one close by."""
+    out: list[tuple[int, str]] = []
+    pos, end = HEAD_TAIL, len(full) - HEAD_TAIL
+    while pos < end and len(out) < MAX_CHUNKS:
+        stop = min(end, pos + CHUNK_CHARS)
+        if stop < end:
+            nl = full.rfind("\n", pos + CHUNK_CHARS // 2, stop)
+            stop = nl + 1 if nl > 0 else stop
+        out.append((pos, full[pos:stop]))
+        pos = stop
+    return out
+
+
+def add_chunks(db: sqlite3.Connection, turn_rowid: int | None, full: str) -> int:
+    if turn_rowid is None or len(full) <= 2 * HEAD_TAIL:
+        return 0
+    pieces = chunk_pieces(full)
+    db.executemany(
+        "INSERT INTO chunk(turn_rowid, off, text) VALUES (?,?,?)", [(turn_rowid, off, text) for off, text in pieces]
+    )
+    return len(pieces)
+
+
+def reindex_chunks(db: sqlite3.Connection, limit: int | None = None) -> int:
+    """Chunk long turns that were ingested before chunks existed. Idempotent; returns how many turns were done."""
+    rows = db.execute(
+        "SELECT t.rowid, t.blob_sha FROM turn t WHERE t.blob_sha IS NOT NULL AND length(t.text) > 1000 "
+        "AND NOT EXISTS (SELECT 1 FROM chunk c WHERE c.turn_rowid = t.rowid) LIMIT ?",
+        (limit if limit is not None else -1,),
+    ).fetchall()
+    done = 0
+    with db:
+        for r in rows:
+            full = get_blob(db, r["blob_sha"])
+            if full and add_chunks(db, r["rowid"], full):
+                done += 1
+    return done
 
 
 def get_blob(db: sqlite3.Connection, sha: str) -> str | None:

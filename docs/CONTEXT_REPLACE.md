@@ -127,6 +127,37 @@ What it says:
 * **So at this size there is no saving**, only the summariser call that is skipped, and that is eaten by the lookups when the
   question needs something the log cannot give.
 
+### The same long test after the log was fixed (2026-11-17)
+
+The test above showed the log could not return a line from the middle of a big tool result. Three changes:
+
+* **The middle of long results is now searchable.** The full body was always kept compressed, but only the first and last 4 000
+  characters were indexed. Now the part between is indexed in 1 500-character pieces (up to 400 per turn), so a word anywhere in a
+  30 k-character file is found. Old logs get their pieces on the next `ingest` (a few hundred long turns per run).
+* **`get_turn` reads a long result in pieces**: `match` (the stretches around a word), `lines` (for example `640-660`, a file read
+  shows the numbers) or `offset` (page on from the "more: offset N" of the last answer), plus `max_chars` up to 16 000.
+* Results in a long body show "inside a long result, near character N" so the model knows where to look.
+
+Same 33-turn session, same 16 questions, one run each (the mod arm had the server running; my first two reruns did not,
+and then the hook stepped aside, so those were Claude Code's own compaction and are not counted here):
+
+| | Claude Code's summary | This mod |
+|---|---|---|
+| Line counts right | 8 of 8 | 8 of 8 |
+| Exact line text right | **8 of 8** (was 0) | **8 of 8** (was 0) |
+| Compaction itself | $0.059 | $0 |
+| The 16-question turn | $0.313 (26 model calls) | $0.285 (32 model calls) |
+| Compaction + questions | $0.372 | $0.285 |
+
+What it says: **the log fix is what mattered.** Both arms went from 0 to 8 of 8 on text that exists only inside tool output,
+because both can now look it up. With the mod, the saving over Claude's own compaction in this run was the skipped summary call
+(about 23 % of the post-compaction cost), and context afterwards was equal (48.6 k against 48.5 k tokens). One run per arm and
+a lookup task that the model had to work hard for (26 and 32 calls); one earlier rerun gave up after 9 calls with 0 of 8, so
+expect variance. Retrieval is still keyword search: the model has to guess a file name or a distinctive word to start from.
+
+Side effects: the database grows (the pieces store the middle of long results a second time, uncompressed), 25.8 MB became 31 MB
+on the author's log. After 30 days (the warm tier) old tool output loses its pieces and is fetched by id only.
+
 ## Turning it on and off
 
 * A row above the prompt shows `Jev context: off` or `ON` with a **Turn on / Turn off** button.
