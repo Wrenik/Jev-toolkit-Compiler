@@ -142,7 +142,8 @@ def install(
         for p in PLUGINS:
             _run([claude, "plugin", "uninstall", f"{p}@{MARKETPLACE}"], say, dry_run)
         say(
-            "Removed the mods. Your log and settings in JEV_HOME were left alone (python -m jev_context forget removes the log)."
+            ("Would remove" if dry_run else "Removed")
+            + " the mods. Your log and settings in JEV_HOME were left alone (python -m jev_context forget removes the log)."
         )
         return 0
 
