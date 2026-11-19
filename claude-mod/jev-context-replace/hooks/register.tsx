@@ -83,7 +83,12 @@ export const register: Register = (on) => {
       $.ui.log(`jev-context-replace: tail starts at ${from} of ${messages.length}`, { to: 'debug' })
       if (messages.length < MIN_MESSAGES || from <= 0) return next(e)
       // The part about to be dropped must be in the log first, or it would be lost for good.
-      const ing = await fetchJson($, '/ingest', { method: 'POST', body: '{}' }, 30000)
+      // The server may be busy with its own automatic ingest; wait for it instead of giving up on the replacement.
+      let ing = await fetchJson($, '/ingest', { method: 'POST', body: '{}' }, 30000)
+      for (let wait = 0; wait < 6 && !ing.ok && /already running/i.test(String(ing.error ?? '')); wait += 1) {
+        await $.clock.sleep(2000)
+        ing = await fetchJson($, '/ingest', { method: 'POST', body: '{}' }, 30000)
+      }
       if (!ing.ok) throw new Error(`ingest failed: ${ing.error ?? 'unknown'}`)
       const query = queryOf(messages)
       let hits: Hit[] = []
