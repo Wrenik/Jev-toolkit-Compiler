@@ -192,9 +192,9 @@ The same logic works on any Anthropic-style messages list:
 ```python
 from jev_context.window import History
 
-history = History("my-agent")           # saved in ~/.jev-toolkit/var/window/, or History() for memory only
-messages = history.reduce(messages)     # before each request once the conversation is long
-tools = my_tools + history.tools()      # search_history and get_history for the model
+history = History("my-agent")  # saved in ~/.jev-toolkit/var/window/, or History() for memory only
+messages = history.reduce(messages)  # before each request once the conversation is long
+tools = my_tools + history.tools()  # search_history and get_history for the model
 # when the model calls one of them:  result = history.call(name, input)
 ```
 
